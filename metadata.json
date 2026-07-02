@@ -1,0 +1,8 @@
+{
+  "name": "Remix: G-Order Manager",
+  "description": "Premium F\u0026B merchant management terminal featuring active order pipelines, dynamic statistics visualizers, custom menu configurators, and offline local cache persistence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
