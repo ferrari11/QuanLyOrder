@@ -723,11 +723,16 @@ export const fetchMenuItemsFromSheet = async (
     );
 
     if (!res.ok) {
-      throw new Error('Failed to fetch MENU sheet');
+      console.warn('MENU sheet not found or inaccessible, falling back to default menu.');
+      return defaultMenuItems;
     }
 
     const data = await res.json();
     const rows: string[][] = data.values || [];
+
+    if (rows.length === 0) {
+      return defaultMenuItems;
+    }
 
     const fetchedItems: MenuItem[] = rows
       .filter((row) => row[0] && row[1]) // Ensure row has at least an ID and a Name
@@ -766,8 +771,8 @@ export const fetchMenuItemsFromSheet = async (
 
     return fetchedItems;
   } catch (err) {
-    console.error('Error fetching menu items from sheets:', err);
-    throw err;
+    console.warn('Error fetching menu items from sheets, returning default menu:', err);
+    return defaultMenuItems;
   }
 };
 

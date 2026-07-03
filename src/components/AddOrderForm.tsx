@@ -29,8 +29,8 @@ export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFo
   // Cart state starting with first and second items
   const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
     const itemsSource = menuItems && menuItems.length >= 2 ? menuItems : DEFAULT_MENU_ITEMS;
-    const firstItem = itemsSource[0];
-    const secondItem = itemsSource[1];
+    const firstItem = itemsSource[0] || DEFAULT_MENU_ITEMS[0];
+    const secondItem = itemsSource[1] || DEFAULT_MENU_ITEMS[1];
     return [
       {
         id: firstItem.id,
