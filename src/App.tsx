@@ -10,7 +10,7 @@ import AddOrderForm from './components/AddOrderForm';
 import StatisticsView from './components/StatisticsView';
 import SettingsView from './components/SettingsView';
 
-import { initAuth, googleSignIn, logout } from './lib/googleAuth';
+import { initAuth, googleSignIn, logout, emailSignIn, emailSignUp } from './lib/googleAuth';
 import {
   getLinkedSpreadsheetId,
   setLinkedSpreadsheetId,
@@ -97,13 +97,11 @@ export default function App() {
 
     // Initialize Auth state listener
     initAuth(
-      (user, token) => {
+      (user) => {
         setGoogleUser(user);
-        setGoogleToken(token);
       },
-      () => {
-        setGoogleUser(null);
-        setGoogleToken(null);
+      (token) => {
+        setGoogleToken(token);
       }
     );
   }, []);
@@ -134,6 +132,16 @@ export default function App() {
       syncMenuFromSheet(googleToken, spreadsheetId);
     }
   }, [googleToken, spreadsheetId]);
+
+  const handleEmailSignIn = async (email: string, password: string) => {
+    const user = await emailSignIn(email, password);
+    setGoogleUser(user);
+  };
+
+  const handleEmailSignUp = async (email: string, password: string) => {
+    const user = await emailSignUp(email, password);
+    setGoogleUser(user);
+  };
 
   const handleGoogleSignIn = async () => {
     setIsSyncing(true);
@@ -360,6 +368,8 @@ export default function App() {
               gSheetsStatusMessage={gSheetsStatusMessage}
               onGoogleSignIn={handleGoogleSignIn}
               onGoogleLogout={handleGoogleLogout}
+              onEmailSignIn={handleEmailSignIn}
+              onEmailSignUp={handleEmailSignUp}
               onCreateNewSheet={handleCreateNewSheet}
               onUnlinkSheet={handleUnlinkSheet}
               onFullSync={handleFullSync}

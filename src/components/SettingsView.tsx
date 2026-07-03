@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 interface SettingsViewProps {
   onResetData: () => void;
@@ -13,6 +13,8 @@ interface SettingsViewProps {
   gSheetsStatusMessage: string | null;
   onGoogleSignIn: () => void;
   onGoogleLogout: () => void;
+  onEmailSignIn: (email: string, password: string) => Promise<void>;
+  onEmailSignUp: (email: string, password: string) => Promise<void>;
   onCreateNewSheet: () => void;
   onUnlinkSheet: () => void;
   onFullSync: () => void;
@@ -31,6 +33,8 @@ export default function SettingsView({
   gSheetsStatusMessage,
   onGoogleSignIn,
   onGoogleLogout,
+  onEmailSignIn,
+  onEmailSignUp,
   onCreateNewSheet,
   onUnlinkSheet,
   onFullSync,
@@ -39,6 +43,45 @@ export default function SettingsView({
   const [storeOpen, setStoreOpen] = useState(true);
   const [autoPrint, setAutoPrint] = useState(true);
   const [language, setLanguage] = useState<'vi' | 'en'>('vi');
+
+  // Email Auth states
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setAuthError('Vui lòng điền đầy đủ email và mật khẩu.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      if (authMode === 'login') {
+        await onEmailSignIn(email, password);
+      } else {
+        await onEmailSignUp(email, password);
+      }
+    } catch (err: any) {
+      console.error(err);
+      let errMsg = err.message;
+      if (err.code === 'auth/invalid-email') {
+        errMsg = 'Email không hợp lệ.';
+      } else if (err.code === 'auth/weak-password') {
+        errMsg = 'Mật khẩu phải tối thiểu 6 ký tự.';
+      } else if (err.code === 'auth/email-already-in-use') {
+        errMsg = 'Email này đã được sử dụng.';
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        errMsg = 'Email hoặc mật khẩu không chính xác.';
+      }
+      setAuthError(errMsg);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   return (
     <div className="pb-24">
@@ -58,18 +101,119 @@ export default function SettingsView({
       {/* Main Settings Container */}
       <main className="pt-18 px-4 max-w-md mx-auto space-y-5 animate-fade-in">
         {/* User Profile Block */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
-          <div className="w-12 h-12 bg-primary-fixed text-primary font-extrabold rounded-full flex items-center justify-center text-lg border border-primary/10">
-            LK
+        {googleUser ? (
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center gap-3">
+              {googleUser.photoURL ? (
+                <img
+                  src={googleUser.photoURL}
+                  alt="Avatar"
+                  className="w-12 h-12 rounded-full border border-primary/10 shadow-xs"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-12 h-12 bg-primary-fixed text-primary font-extrabold rounded-full flex items-center justify-center text-lg border border-primary/10">
+                  {googleUser.email ? googleUser.email.substring(0, 2).toUpperCase() : 'QL'}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-bold text-[#1a1c1c] truncate">
+                  {googleUser.displayName || 'Nhà Của Bắp'}
+                </h2>
+                <p className="text-xs text-gray-500 font-medium truncate mt-0.5">
+                  Quản lý: {googleUser.email}
+                </p>
+                <span className="inline-block px-2.5 py-0.5 bg-primary/10 text-primary text-[10px] font-extrabold rounded-full mt-1.5">
+                  Cấp bậc: Merchant Pro
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={onGoogleLogout}
+              disabled={isSyncing}
+              type="button"
+              className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer active-press border border-gray-200/50 flex items-center justify-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-sm">logout</span>
+              Đăng xuất
+            </button>
           </div>
-          <div>
-            <h2 className="text-base font-bold text-[#1a1c1c]">Nhà Của Bắp</h2>
-            <p className="text-xs text-gray-500 font-medium mt-0.5">Quản lý: lekhiemlv@gmail.com</p>
-            <span className="inline-block px-2.5 py-0.5 bg-primary/10 text-primary text-[10px] font-extrabold rounded-full mt-1.5">
-              Cấp bậc: Merchant Pro
-            </span>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+              <span className="material-symbols-outlined text-primary font-bold">lock_open</span>
+              <h3 className="text-sm font-bold text-on-surface">Đăng nhập Cửa hàng</h3>
+            </div>
+            
+            <form onSubmit={handleAuthSubmit} className="space-y-3">
+              {authError && (
+                <div className="p-2.5 bg-red-50 text-red-700 border border-red-100 rounded-lg text-xs font-semibold">
+                  {authError}
+                </div>
+              )}
+              
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Email</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-primary placeholder:text-gray-300"
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Mật khẩu</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-primary placeholder:text-gray-300"
+                />
+              </div>
+
+              <div className="pt-1">
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-2.5 bg-primary hover:bg-primary/95 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer active-press disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {authLoading ? (
+                    <>
+                      <span className="material-symbols-outlined text-xs animate-spin">sync</span>
+                      Đang kết nối...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-xs">
+                        {authMode === 'login' ? 'login' : 'person_add'}
+                      </span>
+                      {authMode === 'login' ? 'Đăng nhập' : 'Đăng ký cửa hàng mới'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode(authMode === 'login' ? 'register' : 'login');
+                  setAuthError(null);
+                }}
+                className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+              >
+                {authMode === 'login' ? 'Chưa có tài khoản? Đăng ký ngay' : 'Đã có tài khoản? Đăng nhập'}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Operating status card */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3.5">
@@ -192,7 +336,7 @@ export default function SettingsView({
           )}
 
           <div className="space-y-3 pt-1">
-            {!googleUser ? (
+            {!googleToken ? (
               <button
                 type="button"
                 onClick={onGoogleSignIn}
@@ -212,14 +356,14 @@ export default function SettingsView({
                 {/* Connected user header */}
                 <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-150 text-xs font-semibold">
                   <div className="flex items-center gap-2">
-                    {googleUser.photoURL ? (
+                    {googleUser?.photoURL ? (
                       <img src={googleUser.photoURL} alt="Avatar" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />
                     ) : (
                       <span className="material-symbols-outlined text-gray-500 text-lg">account_circle</span>
                     )}
                     <div className="truncate max-w-[180px]">
-                      <p className="text-[#1a1c1c] font-bold">{googleUser.displayName}</p>
-                      <p className="text-[10px] text-gray-500 font-medium truncate">{googleUser.email}</p>
+                      <p className="text-[#1a1c1c] font-bold">{googleUser?.displayName || 'Tài khoản Google'}</p>
+                      <p className="text-[10px] text-gray-500 font-medium truncate">{googleUser?.email || 'Đã kết nối Sheets'}</p>
                     </div>
                   </div>
                   <button
@@ -227,7 +371,7 @@ export default function SettingsView({
                     type="button"
                     className="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-[10px] font-bold rounded-lg cursor-pointer transition-colors active-press"
                   >
-                    Đăng xuất
+                    Ngắt kết nối
                   </button>
                 </div>
 

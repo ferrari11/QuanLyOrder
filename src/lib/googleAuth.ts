@@ -1,5 +1,14 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { 
+  getAuth, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  User,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut
+} from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Reuse existing app if initialized, otherwise initialize
@@ -13,29 +22,37 @@ provider.addScope('https://www.googleapis.com/auth/drive.file');
 
 // Flag to indicate if we are in the middle of a sign-in flow.
 let isSigningIn = false;
-// Cache the access token in memory and sessionStorage.
-let cachedAccessToken: string | null = sessionStorage.getItem('google_access_token');
+// Cache the access token in memory and localStorage.
+let cachedAccessToken: string | null = localStorage.getItem('google_access_token');
 
 // Initialize auth state listener. Call this on app load.
 export const initAuth = (
-  onAuthSuccess?: (user: User, token: string) => void,
-  onAuthFailure?: () => void
+  onUserChanged: (user: User | null) => void,
+  onTokenChanged: (token: string | null) => void
 ) => {
+  // Immediately emit current cached token
+  onTokenChanged(cachedAccessToken);
+  
   return onAuthStateChanged(auth, async (user: User | null) => {
-    if (user) {
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        // Fallback: if we have a user but no in-memory token (e.g. reload),
-        // we'll need the user to trigger signIn again to get a fresh token.
-        if (onAuthFailure) onAuthFailure();
-      }
-    } else {
+    onUserChanged(user);
+    if (!user) {
       cachedAccessToken = null;
-      sessionStorage.removeItem('google_access_token');
-      if (onAuthFailure) onAuthFailure();
+      localStorage.removeItem('google_access_token');
+      onTokenChanged(null);
     }
   });
+};
+
+// Sign in with Email & Password
+export const emailSignIn = async (email: string, password: string): Promise<User> => {
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  return result.user;
+};
+
+// Register/Create Account with Email & Password
+export const emailSignUp = async (email: string, password: string): Promise<User> => {
+  const result = await createUserWithEmailAndPassword(auth, email, password);
+  return result.user;
 };
 
 // Must be called from a button click or user interaction
@@ -49,7 +66,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
 
     cachedAccessToken = credential.accessToken;
-    sessionStorage.setItem('google_access_token', cachedAccessToken);
+    localStorage.setItem('google_access_token', cachedAccessToken);
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Sign in error:', error);
@@ -63,8 +80,18 @@ export const getAccessToken = async (): Promise<string | null> => {
   return cachedAccessToken;
 };
 
+export const setAccessToken = (token: string | null) => {
+  cachedAccessToken = token;
+  if (token) {
+    localStorage.setItem('google_access_token', token);
+  } else {
+    localStorage.removeItem('google_access_token');
+  }
+};
+
 export const logout = async () => {
   await auth.signOut();
   cachedAccessToken = null;
-  sessionStorage.removeItem('google_access_token');
+  localStorage.removeItem('google_access_token');
 };
+
