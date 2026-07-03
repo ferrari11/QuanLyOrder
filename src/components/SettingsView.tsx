@@ -16,6 +16,7 @@ interface SettingsViewProps {
   onCreateNewSheet: () => void;
   onUnlinkSheet: () => void;
   onFullSync: () => void;
+  onSyncMenu?: () => void;
 }
 
 export default function SettingsView({
@@ -33,6 +34,7 @@ export default function SettingsView({
   onCreateNewSheet,
   onUnlinkSheet,
   onFullSync,
+  onSyncMenu,
 }: SettingsViewProps) {
   const [storeOpen, setStoreOpen] = useState(true);
   const [autoPrint, setAutoPrint] = useState(true);
@@ -61,7 +63,7 @@ export default function SettingsView({
             LK
           </div>
           <div>
-            <h2 className="text-base font-bold text-[#1a1c1c]">Quán Mì Xào</h2>
+            <h2 className="text-base font-bold text-[#1a1c1c]">Nhà Của Bắp</h2>
             <p className="text-xs text-gray-500 font-medium mt-0.5">Quản lý: lekhiemlv@gmail.com</p>
             <span className="inline-block px-2.5 py-0.5 bg-primary/10 text-primary text-[10px] font-extrabold rounded-full mt-1.5">
               Cấp bậc: Merchant Pro
@@ -252,6 +254,17 @@ export default function SettingsView({
                       <span className="material-symbols-outlined text-xs">open_in_new</span>
                     </a>
 
+                    {onSyncMenu && (
+                      <button
+                        onClick={onSyncMenu}
+                        disabled={isSyncing}
+                        className="w-full flex items-center justify-center gap-1.5 py-3 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors active-press cursor-pointer disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-xs">restaurant_menu</span>
+                        Đồng bộ Thực đơn từ Sheets
+                      </button>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2">
                       {/* Manual Full Sync */}
                       <button
@@ -291,11 +304,7 @@ export default function SettingsView({
           </div>
 
           <button
-            onClick={() => {
-              if (window.confirm('Khôi phục dữ liệu ban đầu? Thao tác này sẽ đặt lại danh sách đơn hàng.')) {
-                onResetData();
-              }
-            }}
+            onClick={onResetData}
             type="button"
             className="w-full py-2.5 bg-red-50 hover:bg-red-100/80 text-[#ba1a1a] text-xs font-bold rounded-lg border border-red-200 transition-colors active-press cursor-pointer"
           >

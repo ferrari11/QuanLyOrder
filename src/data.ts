@@ -63,7 +63,7 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'menu_7',
-    name: 'Thập cẩm Bò + Tôm + Trứng',
+    name: 'Mì Thập cẩm Bò + Tôm + Trứng',
     price: 25000,
     category: 'Thập cẩm',
     image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBGsng6TClD04l_FlxZhRVR_zDehiIJOWejLfeBC8sHP-MYUby9H4OTRvt8itP153vTuvUeyDvT4d8w-PI15Cg1dlNq-9QUNEMubm-vw918p484oJx8vjs-PsOf4iLD4-airFuEZUXZcFrmCqLO33EduCAINDWsngwS_Ji8mgU_8kLjMjLr9VxVWhbbbilLkGztfD7TdjUl4SnZHDIW33B6ujL7wcZ1X7xDSi_zabgH6OitfWW81uN0vw',
@@ -96,6 +96,16 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
     {
     id: 'menu_10',
     name: 'Cơm chiên Trúng ốp la',
+    price: 25000,
+    category: 'Bún',
+    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBGsng6TClD04l_FlxZhRVR_zDehiIJOWejLfeBC8sHP-MYUby9H4OTRvt8itP153vTuvUeyDvT4d8w-PI15Cg1dlNq-9QUNEMubm-vw918p484oJx8vjs-PsOf4iLD4-airFuEZUXZcFrmCqLO33EduCAINDWsngwS_Ji8mgU_8kLjMjLr9VxVWhbbbilLkGztfD7TdjUl4SnZHDIW33B6ujL7wcZ1X7xDSi_zabgH6OitfWW81uN0vw',
+    salesCount: 24,
+    revenue: 1560000,
+    trend: 0,
+  } ,
+    {
+    id: 'menu_11',
+    name: 'Nui Thập cẩm Bò + Tôm + Trứng',
     price: 25000,
     category: 'Bún',
     image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBGsng6TClD04l_FlxZhRVR_zDehiIJOWejLfeBC8sHP-MYUby9H4OTRvt8itP153vTuvUeyDvT4d8w-PI15Cg1dlNq-9QUNEMubm-vw918p484oJx8vjs-PsOf4iLD4-airFuEZUXZcFrmCqLO33EduCAINDWsngwS_Ji8mgU_8kLjMjLr9VxVWhbbbilLkGztfD7TdjUl4SnZHDIW33B6ujL7wcZ1X7xDSi_zabgH6OitfWW81uN0vw',
@@ -137,82 +147,5 @@ export const DEFAULT_ORDERS: Order[] = [
     status: 'Đã giao',
     note: 'Không lấy ớt.',
     createdAt: '2026-07-02T09:45:00.000Z'
-  },
-  {
-    id: 'ORD003',
-    customerName: 'Lê Minh C',
-    phone: '035 666 8888',
-    source: 'Gọi điện',
-    items: [
-      { id: 'menu_7', name: 'Thập cẩm Bò + Tôm + Trứng', price: 25000, quantity: 5, image: DEFAULT_MENU_ITEMS[6].image }
-    ],
-    totalAmount: 25000,
-    deliveryTime: '12:00',
-    deliveryDate: '2023-11-24',
-    status: 'Chuẩn bị',
-    note: 'Giao gấp, sườn chín kỹ.',
-    isUrgent: true,
-    createdAt: '2026-07-02T11:15:00.000Z'
-  },
-  {
-    id: 'ORD004',
-    customerName: 'Phạm Hoàng D',
-    phone: '088 111 2222',
-    source: 'Khách quen',
-    items: [
-      { id: 'menu_3', name: 'Mì xào bò + Tôm', price: 25000, quantity: 1, image: DEFAULT_MENU_ITEMS[2].image },
-      { id: 'menu_6', name: 'Nui xào bò + Tôm', price: 25000, quantity: 2, image: DEFAULT_MENU_ITEMS[5].image }
-    ],
-    totalAmount: 50000,
-    deliveryTime: '13:15',
-    deliveryDate: '2023-11-24',
-    status: 'Đang chờ',
-    note: 'Thêm nước béo.',
-    createdAt: '2026-07-02T11:30:00.000Z'
-  },
-  {
-    id: 'ORD005',
-    customerName: 'Anh Nguyễn',
-    phone: '097 555 4321',
-    source: 'Facebook',
-    items: [
-      { id: 'menu_1', name: 'Mì xào bò + Trứng lòng đào', price: 25000, quantity: 3, image: DEFAULT_MENU_ITEMS[0].image }
-    ],
-    totalAmount: 25000,
-    deliveryTime: '12:45',
-    deliveryDate: '2023-11-24',
-    status: 'Đang chờ',
-    note: 'Nóng hổi.',
-    createdAt: '2026-07-02T12:00:00.000Z'
-  },
-  {
-    id: 'ORD006',
-    customerName: 'Trần Minh',
-    phone: '093 444 8888',
-    source: 'Zalo',
-    items: [
-      { id: 'menu_2', name: 'Mì xào bò + Trứng lòng đào', price: 25000, quantity: 1, image: DEFAULT_MENU_ITEMS[1].image }
-    ],
-    totalAmount: 25000,
-    deliveryTime: '12:52',
-    deliveryDate: '2023-11-24',
-    status: 'Chuẩn bị',
-    note: 'Ăn kèm thêm rau thơm.',
-    createdAt: '2026-07-02T12:10:00.000Z'
-  },
-  {
-    id: 'ORD007',
-    customerName: 'Lê Hoàng',
-    phone: '096 888 9999',
-    source: 'Gọi điện',
-    items: [
-      { id: 'menu_3', name: 'Mì xào bò + Tôm', price: 25000, quantity: 5, image: DEFAULT_MENU_ITEMS[2].image }
-    ],
-    totalAmount: 25000,
-    deliveryTime: '13:05',
-    deliveryDate: '2023-11-24',
-    status: 'Đang chờ',
-    note: 'Đóng gói kỹ mang đi xa.',
-    createdAt: '2026-07-02T12:30:00.000Z'
   }
 ];

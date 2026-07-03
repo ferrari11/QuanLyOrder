@@ -705,3 +705,69 @@ export const fullSyncToSheet = async (
     throw err;
   }
 };
+
+/**
+ * Fetches current menu items from Google Sheets to sync with the application state
+ */
+export const fetchMenuItemsFromSheet = async (
+  accessToken: string,
+  spreadsheetId: string,
+  defaultMenuItems: MenuItem[]
+): Promise<MenuItem[]> => {
+  try {
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/MENU!A2:F150`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error('Failed to fetch MENU sheet');
+    }
+
+    const data = await res.json();
+    const rows: string[][] = data.values || [];
+
+    const fetchedItems: MenuItem[] = rows
+      .filter((row) => row[0] && row[1]) // Ensure row has at least an ID and a Name
+      .map((row, idx) => {
+        const id = row[0];
+        const name = row[1];
+        const category = row[2] || 'Khác';
+        const price = parseInt((row[3] || '0').replace(/[^0-9]/g, ''), 10) || 0;
+        
+        // Match with defaultMenuItems to retain high-quality images and metrics if possible
+        const matchedDefault = defaultMenuItems.find((item) => item.id === id);
+        
+        // Provide category-based default images or a nice food generic fallback image
+        const categoryLower = category.toLowerCase();
+        let fallbackImage = 'https://lh3.googleusercontent.com/aida-public/AB6AXuBGsng6TClD04l_FlxZhRVR_zDehiIJOWejLfeBC8sHP-MYUby9H4OTRvt8itP153vTuvUeyDvT4d8w-PI15Cg1dlNq-9QUNEMubm-vw918p484oJx8vjs-PsOf4iLD4-airFuEZUXZcFrmCqLO33EduCAINDWsngwS_Ji8mgU_8kLjMjLr9VxVWhbbbilLkGztfD7TdjUl4SnZHDIW33B6ujL7wcZ1X7xDSi_zabgH6OitfWW81uN0vw'; // steaming dish/bowl
+        
+        if (categoryLower.includes('mì') || categoryLower.includes('bún')) {
+          fallbackImage = 'https://lh3.googleusercontent.com/aida-public/AB6AXuDaOyqUzjSI7jmW28KaRzXZUbn7YGWJRZdsk71yeDXoPyn8M6ooyg0PV0OdBqTZPpwKZPUUcTQJPucnbxUNx_ur1sJCP_rdmoIJz95tDgBFpvSg5aCYmaIc7-sctwrVU3jFDFHKgOKpSjZVZgIg_wyjoC5h19JI64pTql28iH9N-5HdqUssg-akwO0eTOYrwuhK1bI_-3RWVwSZ5_48DUxzbcjRg7YX-uJJmM9IjRxeuQKbG4CyoTw1uw';
+        } else if (categoryLower.includes('nui')) {
+          fallbackImage = 'https://lh3.googleusercontent.com/aida-public/AB6AXuB-aBtDV9-3aIxC_eyN43mADTSLwFvhfB8Y839lJ1-NVQcyftLYaoMda971HYdOeVZK6Qu-pt7cluokB6-I8lfmTROtAt-U12x3Ub5S8KzwkaMwFGqCUVkolNDI2nL52vXT3ALMVf6fJB-biGx2k-pKEShEsiG_r0OGb4sNdAitkcu859vlVdW8x6gpWjIY0vxnob9brk4R7KC2CwkFlrJOs-xU_PXxdtX92zIbSNeYX2r2nhsyjmuKkA';
+        } else if (categoryLower.includes('cơm')) {
+          fallbackImage = 'https://lh3.googleusercontent.com/aida-public/AB6AXuBGsng6TClD04l_FlxZhRVR_zDehiIJOWejLfeBC8sHP-MYUby9H4OTRvt8itP153vTuvUeyDvT4d8w-PI15Cg1dlNq-9QUNEMubm-vw918p484oJx8vjs-PsOf4iLD4-airFuEZUXZcFrmCqLO33EduCAINDWsngwS_Ji8mgU_8kLjMjLr9VxVWhbbbilLkGztfD7TdjUl4SnZHDIW33B6ujL7wcZ1X7xDSi_zabgH6OitfWW81uN0vw';
+        }
+
+        return {
+          id,
+          name,
+          price,
+          category,
+          image: matchedDefault?.image || fallbackImage,
+          salesCount: matchedDefault?.salesCount || 0,
+          revenue: matchedDefault?.revenue || 0,
+          trend: matchedDefault?.trend || 0,
+        };
+      });
+
+    return fetchedItems;
+  } catch (err) {
+    console.error('Error fetching menu items from sheets:', err);
+    throw err;
+  }
+};
+

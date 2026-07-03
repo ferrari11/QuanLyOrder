@@ -5,9 +5,10 @@ import { DEFAULT_MENU_ITEMS } from '../data';
 interface AddOrderFormProps {
   onBack: () => void;
   onSubmit: (newOrder: Order) => void;
+  menuItems: MenuItem[];
 }
 
-export default function AddOrderForm({ onBack, onSubmit }: AddOrderFormProps) {
+export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFormProps) {
   // Client state
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
@@ -25,23 +26,28 @@ export default function AddOrderForm({ onBack, onSubmit }: AddOrderFormProps) {
   const [deliveryDate, setDeliveryDate] = useState(getTodayDateString());
   const [note, setNote] = useState('');
 
-  // Cart state starting with Phở Bò Tái Lăn (qty 2) & Nem Rán Giòn (qty 1)
-  const [cartItems, setCartItems] = useState<OrderItem[]>([
-    {
-      id: 'menu_1',
-      name: 'Mì xào bò + Trứng lòng đào',
-      price: 25000,
-      quantity: 2,
-      image: DEFAULT_MENU_ITEMS[0].image,
-    },
-    {
-      id: 'menu_2',
-      name: 'Mì xào bò + Trứng ốp la',
-      price: 25000,
-      quantity: 1,
-      image: DEFAULT_MENU_ITEMS[1].image,
-    }
-  ]);
+  // Cart state starting with first and second items
+  const [cartItems, setCartItems] = useState<OrderItem[]>(() => {
+    const itemsSource = menuItems && menuItems.length >= 2 ? menuItems : DEFAULT_MENU_ITEMS;
+    const firstItem = itemsSource[0];
+    const secondItem = itemsSource[1];
+    return [
+      {
+        id: firstItem.id,
+        name: firstItem.name,
+        price: firstItem.price,
+        quantity: 2,
+        image: firstItem.image,
+      },
+      {
+        id: secondItem.id,
+        name: secondItem.name,
+        price: secondItem.price,
+        quantity: 1,
+        image: secondItem.image,
+      }
+    ];
+  });
 
   // Menu Modal State
   const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
@@ -92,14 +98,14 @@ export default function AddOrderForm({ onBack, onSubmit }: AddOrderFormProps) {
   // Form Submission
   const handleSaveOrder = (e: FormEvent) => {
     e.preventDefault();
-    if (!customerName || !phone || cartItems.length === 0) return;
+    if (!customerName || cartItems.length === 0) return;
 
     // Create a robust new order
     const newId = 'ORD' + Math.floor(100 + Math.random() * 900);
     const newOrder: Order = {
       id: newId,
       customerName,
-      phone,
+      phone: phone.trim(),
       source,
       items: cartItems,
       totalAmount: totalCartAmount,
@@ -162,8 +168,7 @@ export default function AddOrderForm({ onBack, onSubmit }: AddOrderFormProps) {
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="Số điện thoại"
-                required
+                placeholder="Số điện thoại (không bắt buộc)"
                 className="w-full h-11 px-4 rounded-lg border border-gray-200 bg-white text-sm font-medium focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container"
               />
             </div>
@@ -331,7 +336,7 @@ export default function AddOrderForm({ onBack, onSubmit }: AddOrderFormProps) {
           </div>
           <button
             onClick={handleSaveOrder}
-            disabled={cartItems.length === 0 || !customerName || !phone}
+            disabled={cartItems.length === 0 || !customerName}
             type="button"
             className="w-full h-13 bg-primary-container hover:bg-opacity-95 text-white font-bold rounded-xl shadow-md active-press flex items-center justify-center gap-1.5 uppercase tracking-wide cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -363,7 +368,7 @@ export default function AddOrderForm({ onBack, onSubmit }: AddOrderFormProps) {
             </div>
 
             <div className="space-y-3.5 py-4">
-              {DEFAULT_MENU_ITEMS.map((item) => {
+              {(menuItems && menuItems.length > 0 ? menuItems : DEFAULT_MENU_ITEMS).map((item) => {
                 const quantityInCart = cartItems.find((i) => i.id === item.id)?.quantity || 0;
                 return (
                   <div

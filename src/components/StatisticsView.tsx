@@ -4,9 +4,10 @@ import { DEFAULT_MENU_ITEMS } from '../data';
 
 interface StatisticsViewProps {
   onBack?: () => void;
+  menuItems?: MenuItem[];
 }
 
-export default function StatisticsView({ onBack }: StatisticsViewProps) {
+export default function StatisticsView({ onBack, menuItems }: StatisticsViewProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | '7days' | '30days' | 'custom'>('today');
 
   // Interactive state for the hourly orders chart
@@ -55,7 +56,7 @@ export default function StatisticsView({ onBack }: StatisticsViewProps) {
   const activeData = periodData[selectedPeriod];
 
   // Top 5 sellers (using default data sorting)
-  const topSellers: MenuItem[] = [...DEFAULT_MENU_ITEMS]
+  const topSellers: MenuItem[] = [...(menuItems && menuItems.length > 0 ? menuItems : DEFAULT_MENU_ITEMS)]
     .sort((a, b) => b.salesCount - a.salesCount)
     .slice(0, 5);
 

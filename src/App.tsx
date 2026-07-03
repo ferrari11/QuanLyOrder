@@ -18,12 +18,14 @@ import {
   createSpreadsheet,
   syncNewOrderToSheet,
   updateOrderStatusInSheet,
-  fullSyncToSheet
+  fullSyncToSheet,
+  fetchMenuItemsFromSheet
 } from './lib/googleSheetsService';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
   const [orders, setOrders] = useState<Order[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
@@ -42,7 +44,32 @@ export default function App() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [printSuccess, setPrintSuccess] = useState(false);
 
-  // Initialize and load orders from localStorage or set defaults
+  // Custom confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const triggerConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // Initialize and load orders and menu items from localStorage or set defaults
   useEffect(() => {
     const cached = localStorage.getItem('g_orders');
     if (cached) {
@@ -54,6 +81,18 @@ export default function App() {
     } else {
       setOrders(DEFAULT_ORDERS);
       localStorage.setItem('g_orders', JSON.stringify(DEFAULT_ORDERS));
+    }
+
+    const cachedMenu = localStorage.getItem('g_menu_items');
+    if (cachedMenu) {
+      try {
+        setMenuItems(JSON.parse(cachedMenu));
+      } catch (e) {
+        setMenuItems(DEFAULT_MENU_ITEMS);
+      }
+    } else {
+      setMenuItems(DEFAULT_MENU_ITEMS);
+      localStorage.setItem('g_menu_items', JSON.stringify(DEFAULT_MENU_ITEMS));
     }
 
     // Initialize Auth state listener
@@ -68,6 +107,33 @@ export default function App() {
       }
     );
   }, []);
+
+  // Sync menu items to state and localStorage
+  const saveMenuItems = (newMenu: any[]) => {
+    setMenuItems(newMenu);
+    localStorage.setItem('g_menu_items', JSON.stringify(newMenu));
+  };
+
+  // Synchronizes the menu from Google Sheets to local state
+  const syncMenuFromSheet = async (token: string, sheetId: string) => {
+    try {
+      const items = await fetchMenuItemsFromSheet(token, sheetId, DEFAULT_MENU_ITEMS);
+      if (items && items.length > 0) {
+        saveMenuItems(items);
+        return items;
+      }
+    } catch (err) {
+      console.warn('Failed to auto-sync menu from Google Sheets:', err);
+    }
+    return null;
+  };
+
+  // Auto-sync menu items when connected
+  useEffect(() => {
+    if (googleToken && spreadsheetId) {
+      syncMenuFromSheet(googleToken, spreadsheetId);
+    }
+  }, [googleToken, spreadsheetId]);
 
   const handleGoogleSignIn = async () => {
     setIsSyncing(true);
@@ -111,7 +177,7 @@ export default function App() {
     setIsSyncing(true);
     setGSheetsStatusMessage('Đang khởi tạo cấu trúc database 5 bảng chuẩn quan hệ...');
     try {
-      const config = await createSpreadsheet(googleToken, DEFAULT_MENU_ITEMS, orders);
+      const config = await createSpreadsheet(googleToken, menuItems.length > 0 ? menuItems : DEFAULT_MENU_ITEMS, orders);
       setSpreadsheetId(config.spreadsheetId);
       setSpreadsheetUrl(config.spreadsheetUrl);
       setGSheetsStatusMessage('Đã thiết lập Google Sheet hoàn tất! Dữ liệu đã được đồng bộ.');
@@ -125,13 +191,17 @@ export default function App() {
   };
 
   const handleUnlinkSheet = () => {
-    if (window.confirm('Hủy liên kết với Spreadsheet hiện tại? Dữ liệu trên Google Sheet vẫn được giữ nguyên.')) {
-      unlinkSpreadsheet();
-      setSpreadsheetId(null);
-      setSpreadsheetUrl(null);
-      setGSheetsStatusMessage('Đã hủy liên kết bảng tính!');
-      setTimeout(() => setGSheetsStatusMessage(null), 3000);
-    }
+    triggerConfirm(
+      'Hủy liên kết bảng tính',
+      'Bạn có chắc chắn muốn hủy liên kết với Google Spreadsheet hiện tại không? Dữ liệu trên Google Sheet vẫn sẽ được giữ nguyên.',
+      () => {
+        unlinkSpreadsheet();
+        setSpreadsheetId(null);
+        setSpreadsheetUrl(null);
+        setGSheetsStatusMessage('Đã hủy liên kết bảng tính!');
+        setTimeout(() => setGSheetsStatusMessage(null), 3000);
+      }
+    );
   };
 
   const handleFullSync = async () => {
@@ -142,7 +212,19 @@ export default function App() {
     setIsSyncing(true);
     setGSheetsStatusMessage('Đang tải và đồng bộ toàn bộ đơn hàng & thực đơn...');
     try {
-      await fullSyncToSheet(googleToken, spreadsheetId, orders, DEFAULT_MENU_ITEMS);
+      // Pull latest menu items from Sheets first to prevent overwriting new additions
+      let currentMenu = menuItems;
+      try {
+        const fetchedMenu = await fetchMenuItemsFromSheet(googleToken, spreadsheetId, DEFAULT_MENU_ITEMS);
+        if (fetchedMenu && fetchedMenu.length > 0) {
+          currentMenu = fetchedMenu;
+          saveMenuItems(fetchedMenu);
+        }
+      } catch (menuErr) {
+        console.warn('Could not auto-sync menu from sheets before full sync, proceeding with current cache:', menuErr);
+      }
+
+      await fullSyncToSheet(googleToken, spreadsheetId, orders, currentMenu);
       setGSheetsStatusMessage('Đồng bộ toàn bộ dữ liệu hoàn tất!');
       setTimeout(() => setGSheetsStatusMessage(null), 3000);
     } catch (err: any) {
@@ -228,6 +310,7 @@ export default function App() {
         <AddOrderForm
           onBack={() => setIsCreatingOrder(false)}
           onSubmit={handleCreateOrder}
+          menuItems={menuItems.length > 0 ? menuItems : DEFAULT_MENU_ITEMS}
         />
       ) : (
         <>
@@ -255,12 +338,18 @@ export default function App() {
           )}
 
           {activeTab === 'statistics' && (
-            <StatisticsView />
+            <StatisticsView menuItems={menuItems.length > 0 ? menuItems : DEFAULT_MENU_ITEMS} />
           )}
 
           {activeTab === 'settings' && (
             <SettingsView
-              onResetData={handleResetData}
+              onResetData={() => {
+                triggerConfirm(
+                  'Khôi phục dữ liệu mẫu',
+                  'Khôi phục dữ liệu ban đầu? Thao tác này sẽ đặt lại danh sách đơn hàng của bạn.',
+                  handleResetData
+                );
+              }}
               notificationsEnabled={notificationsEnabled}
               onNotificationToggle={() => setNotificationsEnabled(!notificationsEnabled)}
               googleUser={googleUser}
@@ -274,6 +363,28 @@ export default function App() {
               onCreateNewSheet={handleCreateNewSheet}
               onUnlinkSheet={handleUnlinkSheet}
               onFullSync={handleFullSync}
+              onSyncMenu={async () => {
+                if (!googleToken || !spreadsheetId) {
+                  setGSheetsStatusMessage('Chưa kết nối Google hoặc chưa liên kết bảng tính.');
+                  return;
+                }
+                setIsSyncing(true);
+                setGSheetsStatusMessage('Đang tải thực đơn từ Google Sheets...');
+                try {
+                  const items = await syncMenuFromSheet(googleToken, spreadsheetId);
+                  if (items && items.length > 0) {
+                    setGSheetsStatusMessage(`Đã đồng bộ thành công ${items.length} món ăn từ Google Sheet!`);
+                  } else {
+                    setGSheetsStatusMessage('Không tìm thấy dữ liệu món ăn trong sheet MENU.');
+                  }
+                  setTimeout(() => setGSheetsStatusMessage(null), 4000);
+                } catch (err: any) {
+                  setGSheetsStatusMessage(`Lỗi đồng bộ thực đơn: ${err.message}`);
+                  setTimeout(() => setGSheetsStatusMessage(null), 4000);
+                } finally {
+                  setIsSyncing(false);
+                }
+              }}
             />
           )}
 
@@ -487,9 +598,11 @@ export default function App() {
               {selectedOrder.status !== 'Đã giao' && selectedOrder.status !== 'Đã hủy' ? (
                 <button
                   onClick={() => {
-                    if (window.confirm('Hủy bỏ đơn hàng này?')) {
-                      handleUpdateStatus(selectedOrder.id, 'Đã hủy');
-                    }
+                    triggerConfirm(
+                      'Hủy đơn hàng',
+                      'Bạn có chắc chắn muốn hủy bỏ đơn hàng này? Thao tác này không thể hoàn tác.',
+                      () => handleUpdateStatus(selectedOrder.id, 'Đã hủy')
+                    );
                   }}
                   className="py-2.5 bg-red-50 hover:bg-red-100 text-[#ba1a1a] text-xs font-bold rounded-lg border border-red-100 active-press cursor-pointer"
                 >
@@ -498,16 +611,54 @@ export default function App() {
               ) : (
                 <button
                   onClick={() => {
-                    if (window.confirm('Xóa vĩnh viễn đơn hàng này khỏi bộ nhớ tạm?')) {
-                      saveOrders(orders.filter((o) => o.id !== selectedOrder.id));
-                      setSelectedOrder(null);
-                    }
+                    triggerConfirm(
+                      'Xóa đơn hàng',
+                      'Xóa vĩnh viễn đơn hàng này khỏi bộ nhớ tạm? Hành động này sẽ xóa hoàn toàn đơn hàng.',
+                      () => {
+                        saveOrders(orders.filter((o) => o.id !== selectedOrder.id));
+                        setSelectedOrder(null);
+                      }
+                    );
                   }}
                   className="py-2.5 bg-red-50 hover:bg-red-100 text-[#ba1a1a] text-xs font-bold rounded-lg border border-red-100 active-press cursor-pointer col-span-1"
                 >
                   Xóa đơn hàng
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Confirmation Dialog */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in p-4">
+          <div className="absolute inset-0" onClick={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}></div>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 relative z-10 shadow-2xl animate-slide-up space-y-4">
+            <div className="text-center">
+              <span className="material-symbols-outlined text-[#ba1a1a] text-4xl block mb-2">
+                warning
+              </span>
+              <h3 className="text-base font-bold text-on-surface">{confirmDialog.title}</h3>
+              <p className="text-xs text-on-surface-variant font-medium mt-2 leading-relaxed animate-fade-in">
+                {confirmDialog.message}
+              </p>
+            </div>
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-[#333333] text-xs font-bold rounded-lg active-press cursor-pointer font-semibold"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className="flex-1 py-2.5 bg-primary-container hover:bg-opacity-95 text-white text-xs font-bold rounded-lg active-press cursor-pointer shadow-sm font-semibold"
+              >
+                Xác nhận
+              </button>
             </div>
           </div>
         </div>
