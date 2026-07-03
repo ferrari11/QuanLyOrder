@@ -5,8 +5,6 @@ import {
   GoogleAuthProvider, 
   onAuthStateChanged, 
   User,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -25,34 +23,68 @@ let isSigningIn = false;
 // Cache the access token in memory and localStorage.
 let cachedAccessToken: string | null = localStorage.getItem('google_access_token');
 
+let globalOnUserChanged: ((user: any) => void) | null = null;
+
 // Initialize auth state listener. Call this on app load.
 export const initAuth = (
-  onUserChanged: (user: User | null) => void,
+  onUserChanged: (user: any | null) => void,
   onTokenChanged: (token: string | null) => void
 ) => {
+  globalOnUserChanged = onUserChanged;
+  
   // Immediately emit current cached token
   onTokenChanged(cachedAccessToken);
   
+  // Check if we have a locally stored email user
+  const storedUserJson = localStorage.getItem('email_user');
+  if (storedUserJson) {
+    try {
+      const storedUser = JSON.parse(storedUserJson);
+      onUserChanged(storedUser);
+    } catch (e) {
+      console.error('Error parsing stored email user', e);
+    }
+  }
+  
   return onAuthStateChanged(auth, async (user: User | null) => {
-    onUserChanged(user);
-    if (!user) {
-      cachedAccessToken = null;
-      localStorage.removeItem('google_access_token');
-      onTokenChanged(null);
+    // Only emit firebase user if there's no stored email user
+    if (!localStorage.getItem('email_user')) {
+      onUserChanged(user);
+      if (!user) {
+        cachedAccessToken = null;
+        localStorage.removeItem('google_access_token');
+        onTokenChanged(null);
+      }
     }
   });
 };
 
 // Sign in with Email & Password
-export const emailSignIn = async (email: string, password: string): Promise<User> => {
-  const result = await signInWithEmailAndPassword(auth, email, password);
-  return result.user;
-};
+export const emailSignIn = async (email: string, password: string): Promise<any> => {
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw { code: 'auth/invalid-email', message: 'Email không đúng định dạng.' };
+  }
+  
+  if (!password || password.trim().length === 0) {
+    throw { code: 'auth/invalid-credential', message: 'Mật khẩu không được để trống.' };
+  }
 
-// Register/Create Account with Email & Password
-export const emailSignUp = async (email: string, password: string): Promise<User> => {
-  const result = await createUserWithEmailAndPassword(auth, email, password);
-  return result.user;
+  const user = {
+    uid: 'local_user_' + email.replace(/[^a-zA-Z0-9]/g, '_'),
+    email: email,
+    displayName: email.split('@')[0],
+    photoURL: null,
+  };
+
+  localStorage.setItem('email_user', JSON.stringify(user));
+  
+  if (globalOnUserChanged) {
+    globalOnUserChanged(user);
+  }
+  
+  return user;
 };
 
 // Must be called from a button click or user interaction
@@ -90,8 +122,12 @@ export const setAccessToken = (token: string | null) => {
 };
 
 export const logout = async () => {
+  localStorage.removeItem('email_user');
   await auth.signOut();
   cachedAccessToken = null;
   localStorage.removeItem('google_access_token');
+  if (globalOnUserChanged) {
+    globalOnUserChanged(null);
+  }
 };
 

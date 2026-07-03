@@ -14,7 +14,6 @@ interface SettingsViewProps {
   onGoogleSignIn: () => void;
   onGoogleLogout: () => void;
   onEmailSignIn: (email: string, password: string) => Promise<void>;
-  onEmailSignUp: (email: string, password: string) => Promise<void>;
   onCreateNewSheet: () => void;
   onUnlinkSheet: () => void;
   onFullSync: () => void;
@@ -34,7 +33,6 @@ export default function SettingsView({
   onGoogleSignIn,
   onGoogleLogout,
   onEmailSignIn,
-  onEmailSignUp,
   onCreateNewSheet,
   onUnlinkSheet,
   onFullSync,
@@ -47,7 +45,6 @@ export default function SettingsView({
   // Email Auth states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -60,22 +57,14 @@ export default function SettingsView({
     setAuthLoading(true);
     setAuthError(null);
     try {
-      if (authMode === 'login') {
-        await onEmailSignIn(email, password);
-      } else {
-        await onEmailSignUp(email, password);
-      }
+      await onEmailSignIn(email, password);
     } catch (err: any) {
       console.error(err);
-      let errMsg = err.message;
+      let errMsg = err.message || 'Đăng nhập không thành công.';
       if (err.code === 'auth/invalid-email') {
-        errMsg = 'Email không hợp lệ.';
-      } else if (err.code === 'auth/weak-password') {
-        errMsg = 'Mật khẩu phải tối thiểu 6 ký tự.';
-      } else if (err.code === 'auth/email-already-in-use') {
-        errMsg = 'Email này đã được sử dụng.';
-      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        errMsg = 'Email hoặc mật khẩu không chính xác.';
+        errMsg = 'Email không đúng định dạng.';
+      } else if (err.code === 'auth/invalid-credential') {
+        errMsg = 'Thông tin đăng nhập không hợp lệ.';
       }
       setAuthError(errMsg);
     } finally {
@@ -190,28 +179,13 @@ export default function SettingsView({
                     </>
                   ) : (
                     <>
-                      <span className="material-symbols-outlined text-xs">
-                        {authMode === 'login' ? 'login' : 'person_add'}
-                      </span>
-                      {authMode === 'login' ? 'Đăng nhập' : 'Đăng ký cửa hàng mới'}
+                      <span className="material-symbols-outlined text-xs">login</span>
+                      Đăng nhập
                     </>
                   )}
                 </button>
               </div>
             </form>
-
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode(authMode === 'login' ? 'register' : 'login');
-                  setAuthError(null);
-                }}
-                className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
-              >
-                {authMode === 'login' ? 'Chưa có tài khoản? Đăng ký ngay' : 'Đã có tài khoản? Đăng nhập'}
-              </button>
-            </div>
           </div>
         )}
 

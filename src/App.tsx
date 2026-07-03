@@ -10,7 +10,7 @@ import AddOrderForm from './components/AddOrderForm';
 import StatisticsView from './components/StatisticsView';
 import SettingsView from './components/SettingsView';
 
-import { initAuth, googleSignIn, logout, emailSignIn, emailSignUp } from './lib/googleAuth';
+import { initAuth, googleSignIn, logout, emailSignIn } from './lib/googleAuth';
 import {
   getLinkedSpreadsheetId,
   setLinkedSpreadsheetId,
@@ -135,11 +135,6 @@ export default function App() {
 
   const handleEmailSignIn = async (email: string, password: string) => {
     const user = await emailSignIn(email, password);
-    setGoogleUser(user);
-  };
-
-  const handleEmailSignUp = async (email: string, password: string) => {
-    const user = await emailSignUp(email, password);
     setGoogleUser(user);
   };
 
@@ -369,7 +364,6 @@ export default function App() {
               onGoogleSignIn={handleGoogleSignIn}
               onGoogleLogout={handleGoogleLogout}
               onEmailSignIn={handleEmailSignIn}
-              onEmailSignUp={handleEmailSignUp}
               onCreateNewSheet={handleCreateNewSheet}
               onUnlinkSheet={handleUnlinkSheet}
               onFullSync={handleFullSync}
