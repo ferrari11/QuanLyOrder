@@ -1,9 +1,21 @@
-{
-  "projectId": "melodic-fiber-p8gvj",
-  "appId": "1:32520255541:web:85d4072be710d32a86597c",
-  "apiKey": "AIzaSyDTjjQOvFzLumlpKfGD8S2rKIl7fnVdOZM",
-  "authDomain": "melodic-fiber-p8gvj.firebaseapp.com",
-  "storageBucket": "melodic-fiber-p8gvj.firebasestorage.app",
-  "messagingSenderId": "32520255541",
-  "measurementId": ""
-}
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAPA7udbx5U9tbCSVlAOrBmUV7thQqhImw",
+  authDomain: "quanlyorder-86bf1.firebaseapp.com",
+  projectId: "quanlyorder-86bf1",
+  storageBucket: "quanlyorder-86bf1.firebasestorage.app",
+  messagingSenderId: "164943837170",
+  appId: "1:164943837170:web:8bc33b001b6070f8691d6b",
+  measurementId: "G-MB6TZBP9BG"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
