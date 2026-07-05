@@ -24,6 +24,7 @@ let isSigningIn = false;
 let cachedAccessToken: string | null = localStorage.getItem('google_access_token');
 
 let globalOnUserChanged: ((user: any) => void) | null = null;
+let globalOnTokenChanged: ((token: string | null) => void) | null = null;
 
 // Initialize auth state listener. Call this on app load.
 export const initAuth = (
@@ -31,6 +32,7 @@ export const initAuth = (
   onTokenChanged: (token: string | null) => void
 ) => {
   globalOnUserChanged = onUserChanged;
+  globalOnTokenChanged = onTokenChanged;
   
   // Immediately emit current cached token
   onTokenChanged(cachedAccessToken);
@@ -41,6 +43,12 @@ export const initAuth = (
     try {
       const storedUser = JSON.parse(storedUserJson);
       onUserChanged(storedUser);
+      // Ensure we also have a cached mock token
+      if (!cachedAccessToken) {
+        cachedAccessToken = 'mock_token_' + storedUser.email;
+        localStorage.setItem('google_access_token', cachedAccessToken);
+        onTokenChanged(cachedAccessToken);
+      }
     } catch (e) {
       console.error('Error parsing stored email user', e);
     }
@@ -78,10 +86,16 @@ export const emailSignIn = async (email: string, password: string): Promise<any>
     photoURL: null,
   };
 
+  const mockToken = 'mock_token_' + email;
   localStorage.setItem('email_user', JSON.stringify(user));
+  localStorage.setItem('google_access_token', mockToken);
+  cachedAccessToken = mockToken;
   
   if (globalOnUserChanged) {
     globalOnUserChanged(user);
+  }
+  if (globalOnTokenChanged) {
+    globalOnTokenChanged(mockToken);
   }
   
   return user;
@@ -128,6 +142,9 @@ export const logout = async () => {
   localStorage.removeItem('google_access_token');
   if (globalOnUserChanged) {
     globalOnUserChanged(null);
+  }
+  if (globalOnTokenChanged) {
+    globalOnTokenChanged(null);
   }
 };
 
