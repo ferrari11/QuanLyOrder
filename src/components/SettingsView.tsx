@@ -49,6 +49,39 @@ export default function SettingsView({
   const [authLoading, setAuthLoading] = useState(false);
   const [showManualAuth, setShowManualAuth] = useState(false);
 
+  const renderStatusMessage = (msg: string) => {
+    if (!msg) return null;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const lines = msg.split('\n');
+    return (
+      <div className="space-y-1">
+        {lines.map((line, idx) => {
+          const parts = line.split(urlRegex);
+          return (
+            <p key={idx} className="whitespace-pre-wrap break-all">
+              {parts.map((part, i) => {
+                if (part.match(urlRegex)) {
+                  return (
+                    <a
+                      key={i}
+                      href={part}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline font-extrabold bg-white px-2 py-0.5 rounded border border-blue-200 inline-block my-1 break-all shadow-xs hover:bg-blue-50"
+                    >
+                      {part}
+                    </a>
+                  );
+                }
+                return part;
+              })}
+            </p>
+          );
+        })}
+      </div>
+    );
+  };
+
   const handleGoogleConnectClick = async () => {
     try {
       await onGoogleSignIn();
@@ -230,7 +263,7 @@ export default function SettingsView({
                 ? 'bg-red-50 text-red-700 border-red-200' 
                 : 'bg-green-50 text-green-700 border-green-200 animate-pulse'
             }`}>
-              {gSheetsStatusMessage}
+              {renderStatusMessage(gSheetsStatusMessage)}
             </div>
           )}
 

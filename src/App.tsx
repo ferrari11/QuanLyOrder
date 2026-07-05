@@ -144,6 +144,7 @@ export default function App() {
       }
     } catch (err) {
       console.warn('Failed to auto-sync menu from Google Sheets:', err);
+      throw err;
     }
     return null;
   };
@@ -151,7 +152,9 @@ export default function App() {
   // Auto-sync menu items when connected
   useEffect(() => {
     if (googleToken && spreadsheetId) {
-      syncMenuFromSheet(googleToken, spreadsheetId);
+      syncMenuFromSheet(googleToken, spreadsheetId).catch((err) => {
+        console.warn('Auto-sync menu failed, will retry on manual refresh:', err);
+      });
     }
   }, [googleToken, spreadsheetId]);
 
