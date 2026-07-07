@@ -42,6 +42,35 @@ export default function HomeDashboard({
     0
   );
 
+  // Counts of noodles, macaroni, rice, vermicelli in real-time
+  const categoryCounts = {
+    mi: { active: 0, total: 0 },
+    nui: { active: 0, total: 0 },
+    com: { active: 0, total: 0 },
+    bun: { active: 0, total: 0 },
+  };
+
+  orders.forEach((o) => {
+    const isActive = o.status === 'Đang chờ' || o.status === 'Chuẩn bị';
+    o.items.forEach((item) => {
+      const name = item.name.toLowerCase();
+      const qty = item.quantity;
+      if (name.includes('mì')) {
+        categoryCounts.mi.total += qty;
+        if (isActive) categoryCounts.mi.active += qty;
+      } else if (name.includes('nui')) {
+        categoryCounts.nui.total += qty;
+        if (isActive) categoryCounts.nui.active += qty;
+      } else if (name.includes('cơm')) {
+        categoryCounts.com.total += qty;
+        if (isActive) categoryCounts.com.active += qty;
+      } else if (name.includes('bún')) {
+        categoryCounts.bun.total += qty;
+        if (isActive) categoryCounts.bun.active += qty;
+      }
+    });
+  });
+
   // Best seller
   const itemCounts: Record<string, { count: number; name: string }> = {};
   orders.forEach((o) => {
@@ -183,6 +212,64 @@ export default function HomeDashboard({
             <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Món chạy nhất</span>
             <span className="text-sm font-bold text-on-surface line-clamp-2 leading-snug">{bestSeller}</span>
           </div>
+        </section>
+
+        {/* Real-time Category Portions Card */}
+        <section className="bg-white border border-gray-200 rounded-xl p-4 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-primary font-bold text-lg">restaurant</span>
+              <h3 className="text-sm font-bold text-[#1a1c1c]">Định lượng món cần làm (Chưa giao)</h3>
+            </div>
+            <span className="text-[10px] bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-full uppercase border border-red-150 animate-pulse">
+              Live
+            </span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2">
+            {/* Mì */}
+            <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs">
+              <span className="text-xl mb-1">🍜</span>
+              <span className="text-xs font-bold text-[#92400E]">Mì</span>
+              <div className="mt-1.5 flex flex-col items-center">
+                <span className="text-xl font-black text-[#D97706]">{categoryCounts.mi.active}</span>
+                <span className="text-[9px] text-[#B45309] font-semibold">Tổng: {categoryCounts.mi.total}</span>
+              </div>
+            </div>
+
+            {/* Nui */}
+            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs">
+              <span className="text-xl mb-1">🍝</span>
+              <span className="text-xs font-bold text-[#1E40AF]">Nui</span>
+              <div className="mt-1.5 flex flex-col items-center">
+                <span className="text-xl font-black text-[#2563EB]">{categoryCounts.nui.active}</span>
+                <span className="text-[9px] text-[#1D4ED8] font-semibold">Tổng: {categoryCounts.nui.total}</span>
+              </div>
+            </div>
+
+            {/* Cơm */}
+            <div className="bg-[#ECFDF5] border border-[#A7F3D0] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs">
+              <span className="text-xl mb-1">🍚</span>
+              <span className="text-xs font-bold text-[#065F46]">Cơm</span>
+              <div className="mt-1.5 flex flex-col items-center">
+                <span className="text-xl font-black text-[#059669]">{categoryCounts.com.active}</span>
+                <span className="text-[9px] text-[#047857] font-semibold">Tổng: {categoryCounts.com.total}</span>
+              </div>
+            </div>
+
+            {/* Bún */}
+            <div className="bg-[#FFF5F5] border border-[#FEB2B2] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs">
+              <span className="text-xl mb-1">🥗</span>
+              <span className="text-xs font-bold text-[#9B2C2C]">Bún</span>
+              <div className="mt-1.5 flex flex-col items-center">
+                <span className="text-xl font-black text-[#E53E3E]">{categoryCounts.bun.active}</span>
+                <span className="text-[9px] text-[#C53030] font-semibold">Tổng: {categoryCounts.bun.total}</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-on-surface-variant font-medium text-center leading-normal">
+            Số nổi bật là <strong className="text-primary">cần làm gấp (chưa giao)</strong>, số nhỏ là tổng lũy kế trong ngày.
+          </p>
         </section>
 
         {/* Primary Action Call */}
