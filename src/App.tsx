@@ -28,6 +28,7 @@ export default function App() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderSearchFilter, setOrderSearchFilter] = useState<string>('');
 
   // Google Sheets integration state
   const [googleUser, setGoogleUser] = useState<User | null>(null);
@@ -353,7 +354,10 @@ export default function App() {
             <HomeDashboard
               orders={orders}
               onAddOrderClick={() => setIsCreatingOrder(true)}
-              onViewAllOrdersClick={() => setActiveTab('orders')}
+              onViewAllOrdersClick={(category) => {
+                setOrderSearchFilter(category || '');
+                setActiveTab('orders');
+              }}
               onOrderClick={(order) => setSelectedOrder(order)}
               onNotificationToggle={() => setNotificationsEnabled(!notificationsEnabled)}
               notificationsEnabled={notificationsEnabled}
@@ -369,6 +373,7 @@ export default function App() {
               onAddOrderClick={() => setIsCreatingOrder(true)}
               onOrderClick={(order) => setSelectedOrder(order)}
               onUpdateStatus={handleUpdateStatus}
+              initialSearchTerm={orderSearchFilter}
             />
           )}
 
@@ -428,6 +433,9 @@ export default function App() {
           <Navigation
             activeTab={activeTab}
             onTabChange={(tab) => {
+              if (tab !== 'orders') {
+                setOrderSearchFilter('');
+              }
               setActiveTab(tab);
               setIsCreatingOrder(false); // Clean exit of form
             }}

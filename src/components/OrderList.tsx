@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Order, OrderStatus } from '../types';
 
 interface OrderListProps {
@@ -6,6 +6,7 @@ interface OrderListProps {
   onAddOrderClick: () => void;
   onOrderClick: (order: Order) => void;
   onUpdateStatus: (orderId: string, newStatus: OrderStatus) => void;
+  initialSearchTerm?: string;
 }
 
 export default function OrderList({
@@ -13,9 +14,19 @@ export default function OrderList({
   onAddOrderClick,
   onOrderClick,
   onUpdateStatus,
+  initialSearchTerm = '',
 }: OrderListProps) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'delivered' | 'urgent'>('all');
+
+  // Sync with initialSearchTerm when parent triggers a specific search filter from another tab
+  useEffect(() => {
+    setSearchTerm(initialSearchTerm);
+    if (initialSearchTerm) {
+      // If a category is clicked, default to showing 'all' tab so they can see all orders with that item
+      setActiveFilter('all');
+    }
+  }, [initialSearchTerm]);
 
   // Multi-criteria client side search & filter
   const filteredOrders = useMemo(() => {

@@ -51,6 +51,7 @@ export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFo
 
   // Menu Modal State
   const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
+  const [tempSelections, setTempSelections] = useState<Record<string, { checked: boolean; quantity: number }>>({});
   const [successMessage, setSuccessMessage] = useState(false);
 
   // Cart operations
@@ -68,26 +69,72 @@ export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFo
     });
   };
 
-  const addMenuItemToCart = (menuItem: MenuItem) => {
-    setCartItems((prevItems) => {
-      const existing = prevItems.find((item) => item.id === menuItem.id);
-      if (existing) {
-        return prevItems.map((item) =>
-          item.id === menuItem.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
+  const openMenuModal = () => {
+    const initialSelections: Record<string, { checked: boolean; quantity: number }> = {};
+    cartItems.forEach((item) => {
+      initialSelections[item.id] = { checked: true, quantity: item.quantity };
+    });
+    setTempSelections(initialSelections);
+    setIsMenuModalOpen(true);
+  };
+
+  const toggleItemCheck = (itemId: string) => {
+    setTempSelections((prev) => {
+      const existing = prev[itemId];
+      if (existing && existing.checked) {
+        return {
+          ...prev,
+          [itemId]: { ...existing, checked: false },
+        };
       } else {
-        return [
-          ...prevItems,
-          {
-            id: menuItem.id,
-            name: menuItem.name,
-            price: menuItem.price,
-            quantity: 1,
-            image: menuItem.image,
+        return {
+          ...prev,
+          [itemId]: {
+            checked: true,
+            quantity: existing?.quantity || 1,
           },
-        ];
+        };
       }
     });
+  };
+
+  const handleTempQtyChange = (itemId: string, qty: number) => {
+    if (qty < 1) qty = 1;
+    setTempSelections((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        quantity: qty,
+      },
+    }));
+  };
+
+  const handleConfirmMenuSelection = () => {
+    const itemsSource = menuItems && menuItems.length > 0 ? menuItems : DEFAULT_MENU_ITEMS;
+    const updatedCart: OrderItem[] = [];
+
+    itemsSource.forEach((item) => {
+      const selection = tempSelections[item.id];
+      if (selection && selection.checked && selection.quantity > 0) {
+        updatedCart.push({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: selection.quantity,
+          image: item.image,
+        });
+      }
+    });
+
+    // Handle any items in the cart that are NOT in itemsSource list (e.g. edge-case fallback)
+    cartItems.forEach((cartItem) => {
+      const existsInMenu = itemsSource.some((m) => m.id === cartItem.id);
+      if (!existsInMenu) {
+        updatedCart.push(cartItem);
+      }
+    });
+
+    setCartItems(updatedCart);
     setIsMenuModalOpen(false);
   };
 
@@ -126,6 +173,8 @@ export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFo
   const formatCurrency = (value: number) => {
     return value.toLocaleString('vi-VN') + 'đ';
   };
+
+  const checkedCount = Object.keys(tempSelections).filter((key) => tempSelections[key]?.checked).length;
 
   return (
     <div className="pb-36 bg-surface min-h-screen">
@@ -305,7 +354,7 @@ export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFo
             {/* Trigger menu modal */}
             <button
               type="button"
-              onClick={() => setIsMenuModalOpen(true)}
+              onClick={openMenuModal}
               className="w-full py-3 border-2 border-dashed border-primary/20 rounded-xl text-primary font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-primary/5 active-press transition-all cursor-pointer"
             >
               <span className="material-symbols-outlined text-sm font-bold">add_circle</span>
@@ -353,7 +402,7 @@ export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFo
           <div className="absolute inset-0" onClick={() => setIsMenuModalOpen(false)}></div>
 
           {/* Modal Container */}
-          <div className="bg-white rounded-t-2xl w-full max-w-md p-5 relative z-10 max-h-[80vh] overflow-y-auto shadow-2xl animate-slide-up">
+          <div className="bg-white rounded-t-2xl w-full max-w-md p-5 relative z-10 max-h-[85vh] flex flex-col shadow-2xl animate-slide-up">
             <div className="flex justify-between items-center pb-4 border-b border-gray-100">
               <h2 className="text-base font-bold text-on-surface flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-primary">restaurant_menu</span>
@@ -367,17 +416,35 @@ export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFo
               </button>
             </div>
 
-            <div className="space-y-3.5 py-4">
+            {/* Menu Items Checklist scrollable */}
+            <div className="space-y-3.5 py-4 overflow-y-auto max-h-[50vh] pr-1">
               {(menuItems && menuItems.length > 0 ? menuItems : DEFAULT_MENU_ITEMS).map((item) => {
-                const quantityInCart = cartItems.find((i) => i.id === item.id)?.quantity || 0;
+                const isChecked = !!tempSelections[item.id]?.checked;
+                const currentQty = tempSelections[item.id]?.quantity || 1;
+
                 return (
                   <div
                     key={item.id}
-                    onClick={() => addMenuItemToCart(item)}
-                    className="flex items-center justify-between p-2.5 hover:bg-orange-50/50 border border-gray-100 rounded-xl cursor-pointer transition-colors active-press"
+                    onClick={() => toggleItemCheck(item.id)}
+                    className={`flex items-center justify-between p-2.5 border rounded-xl transition-all cursor-pointer ${
+                      isChecked
+                        ? 'bg-orange-50/40 border-primary/40 shadow-2xs'
+                        : 'bg-white border-gray-100 hover:bg-gray-50'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
+                      {/* Checkbox */}
+                      <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleItemCheck(item.id)}
+                          className="w-5 h-5 accent-primary cursor-pointer rounded border-gray-300 focus:ring-primary focus:ring-2"
+                        />
+                      </div>
+
+                      {/* Food Image */}
+                      <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
                         <img
                           src={item.image}
                           alt={item.name}
@@ -385,8 +452,9 @@ export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFo
                           referrerPolicy="no-referrer"
                         />
                       </div>
+
                       <div>
-                        <h3 className="text-xs font-bold text-on-surface">{item.name}</h3>
+                        <h3 className="text-xs font-bold text-on-surface line-clamp-1">{item.name}</h3>
                         <p className="text-[10px] text-gray-500 font-medium mt-0.5">{item.category}</p>
                         <p className="text-xs font-bold text-primary-container mt-1">
                           {formatCurrency(item.price)}
@@ -394,19 +462,60 @@ export default function AddOrderForm({ onBack, onSubmit, menuItems }: AddOrderFo
                       </div>
                     </div>
 
-                    <div className="text-right flex items-center gap-2">
-                      {quantityInCart > 0 && (
-                        <span className="bg-primary/10 text-primary text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                          {quantityInCart} phần
-                        </span>
+                    {/* Quantity Selector or Status */}
+                    <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                      {isChecked ? (
+                        <div className="flex items-center gap-1.5 bg-white border border-gray-300 rounded-lg p-0.5 shadow-3xs">
+                          <button
+                            type="button"
+                            onClick={() => handleTempQtyChange(item.id, currentQty - 1)}
+                            className="w-6.5 h-6.5 flex items-center justify-center text-primary-container hover:bg-gray-150 rounded-full font-bold active-press"
+                          >
+                            <span className="material-symbols-outlined text-xs">remove</span>
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={currentQty}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              handleTempQtyChange(item.id, isNaN(val) ? 1 : val);
+                            }}
+                            className="w-8 text-center text-xs font-bold text-[#1a1c1c] border-0 focus:outline-none focus:ring-0 p-0"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleTempQtyChange(item.id, currentQty + 1)}
+                            className="w-6.5 h-6.5 flex items-center justify-center text-primary-container hover:bg-gray-150 rounded-full font-bold active-press"
+                          >
+                            <span className="material-symbols-outlined text-xs">add</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 font-medium italic pr-1">Chưa chọn</span>
                       )}
-                      <span className="material-symbols-outlined text-primary-container text-xl font-bold">
-                        add_circle
-                      </span>
                     </div>
                   </div>
                 );
               })}
+            </div>
+
+            {/* Confirm Actions */}
+            <div className="pt-4 border-t border-gray-100 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsMenuModalOpen(false)}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-all cursor-pointer uppercase"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmMenuSelection}
+                className="flex-1 py-3 bg-primary-container hover:bg-opacity-95 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase"
+              >
+                Đồng ý ({checkedCount} món)
+              </button>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MenuItem } from '../types';
 import { DEFAULT_MENU_ITEMS } from '../data';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface StatisticsViewProps {
   onBack?: () => void;
@@ -12,6 +13,38 @@ export default function StatisticsView({ onBack, menuItems }: StatisticsViewProp
 
   // Interactive state for the hourly orders chart
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
+
+  // Dynamic calculation of revenue by category from menuItems
+  const itemsSource = menuItems && menuItems.length > 0 ? menuItems : DEFAULT_MENU_ITEMS;
+
+  const categoryRevenueMap: Record<string, number> = {};
+  itemsSource.forEach((item) => {
+    let cat = item.category ? item.category.trim() : 'Khác';
+    if (cat.toLowerCase() === 'bún') cat = 'Bún';
+    if (cat.toLowerCase() === 'mì') cat = 'Mì';
+    if (cat.toLowerCase() === 'nui') cat = 'Nui';
+    if (cat.toLowerCase() === 'cơm') cat = 'Cơm';
+    if (cat.toLowerCase() === 'thập cẩm') cat = 'Thập cẩm';
+
+    categoryRevenueMap[cat] = (categoryRevenueMap[cat] || 0) + (item.revenue || 0);
+  });
+
+  const pieData = Object.entries(categoryRevenueMap)
+    .map(([name, value]) => ({ name, value }))
+    .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value);
+
+  const totalCategoryRevenue = pieData.reduce((sum, d) => sum + d.value, 0);
+
+  // High quality theme-consistent colors
+  const COLORS: Record<string, string> = {
+    'Mì': '#F59E0B',      // Amber
+    'Nui': '#3B82F6',     // Blue
+    'Cơm': '#10B981',     // Emerald
+    'Bún': '#EF4444',     // Red
+    'Thập cẩm': '#8B5CF6', // Purple
+    'Khác': '#6B7280',    // Gray
+  };
 
   // Hardcoded or dynamic values for periods to demonstrate operational changes
   const periodData = {
@@ -220,6 +253,80 @@ export default function StatisticsView({ onBack, menuItems }: StatisticsViewProp
             <span>14:00</span>
             <span>16:00</span>
             <span>18:00</span>
+          </div>
+        </div>
+
+        {/* Biểu đồ tròn Recharts: Doanh thu theo danh mục */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-on-surface flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-primary text-lg">pie_chart</span>
+              Tỷ lệ doanh thu theo danh mục
+            </h3>
+            <span className="text-[10px] text-primary font-bold bg-primary/10 px-2.5 py-0.5 rounded-full">
+              {formatCurrency(totalCategoryRevenue)}
+            </span>
+          </div>
+
+          <div className="h-56 flex flex-col items-center justify-center relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={COLORS[entry.name] || COLORS['Khác']} 
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value: any) => [formatCurrency(Number(value)), 'Doanh thu']}
+                  contentStyle={{
+                    backgroundColor: '#fff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+
+            {/* Custom overlay in the center of Donut */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-[-10px]">
+              <span className="text-[10px] text-gray-400 font-bold tracking-wider uppercase">Tổng cộng</span>
+              <span className="text-sm font-black text-on-surface leading-none mt-0.5 text-center px-4 max-w-[120px] truncate">
+                {formatCurrency(totalCategoryRevenue)}
+              </span>
+            </div>
+          </div>
+
+          {/* Legend Grid */}
+          <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-gray-100">
+            {pieData.map((entry) => {
+              const pct = totalCategoryRevenue > 0 ? ((entry.value / totalCategoryRevenue) * 100).toFixed(1) : '0';
+              const color = COLORS[entry.name] || COLORS['Khác'];
+              return (
+                <div key={entry.name} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-3 h-3 rounded-xs flex-shrink-0" style={{ backgroundColor: color }}></div>
+                    <span className="text-xs font-semibold text-on-surface truncate">{entry.name}</span>
+                  </div>
+                  <span className="text-xs font-extrabold text-[#1a1c1c] flex-shrink-0">
+                    {pct}%
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 

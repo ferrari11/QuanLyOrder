@@ -3,7 +3,7 @@ import { Order } from '../types';
 interface HomeDashboardProps {
   orders: Order[];
   onAddOrderClick: () => void;
-  onViewAllOrdersClick: () => void;
+  onViewAllOrdersClick: (category?: string) => void;
   onOrderClick: (order: Order) => void;
   onNotificationToggle: () => void;
   notificationsEnabled: boolean;
@@ -228,47 +228,59 @@ export default function HomeDashboard({
 
           <div className="grid grid-cols-4 gap-2">
             {/* Mì */}
-            <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs">
+            <button
+              onClick={() => onViewAllOrdersClick('Mì')}
+              className="bg-[#FFFBEB] border border-[#FDE68A] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+            >
               <span className="text-xl mb-1">🍜</span>
               <span className="text-xs font-bold text-[#92400E]">Mì</span>
               <div className="mt-1.5 flex flex-col items-center">
                 <span className="text-xl font-black text-[#D97706]">{categoryCounts.mi.active}</span>
                 <span className="text-[9px] text-[#B45309] font-semibold">Tổng: {categoryCounts.mi.total}</span>
               </div>
-            </div>
+            </button>
 
             {/* Nui */}
-            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs">
+            <button
+              onClick={() => onViewAllOrdersClick('Nui')}
+              className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+            >
               <span className="text-xl mb-1">🍝</span>
               <span className="text-xs font-bold text-[#1E40AF]">Nui</span>
               <div className="mt-1.5 flex flex-col items-center">
                 <span className="text-xl font-black text-[#2563EB]">{categoryCounts.nui.active}</span>
                 <span className="text-[9px] text-[#1D4ED8] font-semibold">Tổng: {categoryCounts.nui.total}</span>
               </div>
-            </div>
+            </button>
 
             {/* Cơm */}
-            <div className="bg-[#ECFDF5] border border-[#A7F3D0] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs">
+            <button
+              onClick={() => onViewAllOrdersClick('Cơm')}
+              className="bg-[#ECFDF5] border border-[#A7F3D0] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+            >
               <span className="text-xl mb-1">🍚</span>
               <span className="text-xs font-bold text-[#065F46]">Cơm</span>
               <div className="mt-1.5 flex flex-col items-center">
                 <span className="text-xl font-black text-[#059669]">{categoryCounts.com.active}</span>
                 <span className="text-[9px] text-[#047857] font-semibold">Tổng: {categoryCounts.com.total}</span>
               </div>
-            </div>
+            </button>
 
             {/* Bún */}
-            <div className="bg-[#FFF5F5] border border-[#FEB2B2] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs">
+            <button
+              onClick={() => onViewAllOrdersClick('Bún')}
+              className="bg-[#FFF5F5] border border-[#FEB2B2] rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all hover:shadow-xs hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+            >
               <span className="text-xl mb-1">🥗</span>
               <span className="text-xs font-bold text-[#9B2C2C]">Bún</span>
               <div className="mt-1.5 flex flex-col items-center">
                 <span className="text-xl font-black text-[#E53E3E]">{categoryCounts.bun.active}</span>
                 <span className="text-[9px] text-[#C53030] font-semibold">Tổng: {categoryCounts.bun.total}</span>
               </div>
-            </div>
+            </button>
           </div>
           <p className="text-[10px] text-on-surface-variant font-medium text-center leading-normal">
-            Số nổi bật là <strong className="text-primary">cần làm gấp (chưa giao)</strong>, số nhỏ là tổng lũy kế trong ngày.
+            Số nổi bật là <strong className="text-primary">cần làm gấp (chưa giao)</strong>. Bấm vào thẻ bất kỳ để chuyển đến trang Danh sách Đơn hàng.
           </p>
         </section>
 
