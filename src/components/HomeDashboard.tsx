@@ -1,4 +1,12 @@
+import { useState, useEffect } from 'react';
 import { Order } from '../types';
+
+interface StickyNote {
+  id: string;
+  content: string;
+  color: 'yellow' | 'green' | 'blue' | 'pink' | 'purple';
+  createdAt: string;
+}
 
 interface HomeDashboardProps {
   orders: Order[];
@@ -10,6 +18,7 @@ interface HomeDashboardProps {
   googleUser: any;
   spreadsheetId: string | null;
   spreadsheetUrl: string | null;
+  showSyncPulse?: boolean;
 }
 
 export default function HomeDashboard({
@@ -22,7 +31,96 @@ export default function HomeDashboard({
   googleUser,
   spreadsheetId,
   spreadsheetUrl,
+  showSyncPulse = false,
 }: HomeDashboardProps) {
+  // Sticky Notes state initialized with nice default notes
+  const [notes, setNotes] = useState<StickyNote[]>(() => {
+    const saved = localStorage.getItem('g_sticky_notes');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    const defaultNotes: StickyNote[] = [
+      {
+        id: 'note-1',
+        content: 'Nhắc nhở: Kiểm tra đơn ShopeeFood hẹn giờ 11h30 trưa nay ⏰',
+        color: 'yellow',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'note-2',
+        content: 'Hết nguyên liệu: Nhập thêm rau xà lách và dưa leo cho ngày mai 🥬',
+        color: 'pink',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem('g_sticky_notes', JSON.stringify(defaultNotes));
+    return defaultNotes;
+  });
+
+  const [newNoteText, setNewNoteText] = useState('');
+  const [selectedColor, setSelectedColor] = useState<'yellow' | 'green' | 'blue' | 'pink' | 'purple'>('yellow');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+
+  const saveNotes = (updated: StickyNote[]) => {
+    setNotes(updated);
+    localStorage.setItem('g_sticky_notes', JSON.stringify(updated));
+  };
+
+  const handleAddNote = () => {
+    if (!newNoteText.trim()) return;
+
+    if (editingNoteId) {
+      const updated = notes.map((n) =>
+        n.id === editingNoteId
+          ? { ...n, content: newNoteText.trim(), color: selectedColor }
+          : n
+      );
+      saveNotes(updated);
+      setEditingNoteId(null);
+    } else {
+      const newNote: StickyNote = {
+        id: `note-${Date.now()}`,
+        content: newNoteText.trim(),
+        color: selectedColor,
+        createdAt: new Date().toISOString(),
+      };
+      saveNotes([...notes, newNote]);
+    }
+
+    setNewNoteText('');
+    setSelectedColor('yellow');
+  };
+
+  const handleDeleteNote = (id: string) => {
+    const updated = notes.filter((n) => n.id !== id);
+    saveNotes(updated);
+    if (editingNoteId === id) {
+      setEditingNoteId(null);
+      setNewNoteText('');
+    }
+  };
+
+  const handleEditNote = (note: StickyNote) => {
+    setEditingNoteId(note.id);
+    setNewNoteText(note.content);
+    setSelectedColor(note.color);
+  };
+
+  const handleQuickTemplate = (text: string) => {
+    if (newNoteText.includes(text)) return;
+    setNewNoteText((prev) => (prev ? `${prev} • ${text}` : text));
+  };
+
+  const handleCancelEdit = () => {
+    setEditingNoteId(null);
+    setNewNoteText('');
+    setSelectedColor('yellow');
+  };
+
   // Dynamic metrics computed in real-time
   const totalOrdersCount = orders.length;
   
@@ -160,10 +258,17 @@ export default function HomeDashboard({
               href={spreadsheetUrl || '#'}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-xs font-bold rounded-xl border border-green-200 active-press hover:bg-green-100 transition-all shadow-xs"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all shadow-xs active-press ${
+                showSyncPulse
+                  ? 'bg-green-100 text-green-800 border-green-400 ring-4 ring-green-100 scale-105 duration-300'
+                  : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+              }`}
               title="Mở Google Sheets quản lý đơn hàng"
             >
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="relative flex h-2 w-2">
+                <span className={`absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 ${showSyncPulse ? 'animate-ping scale-200' : 'animate-pulse'}`}></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
               Sheets Live
               <span className="material-symbols-outlined text-[10px] font-bold">open_in_new</span>
             </a>
@@ -174,6 +279,26 @@ export default function HomeDashboard({
             </div>
           )}
         </div>
+
+        {/* Pulse Auto-sync Notification Banner */}
+        {showSyncPulse && (
+          <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl p-3.5 flex items-center justify-between shadow-md animate-slide-up border border-emerald-400">
+            <div className="flex items-center gap-2.5">
+              <div className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold">Hệ thống đã tự động đồng bộ</span>
+                <span className="text-[10px] opacity-90 font-semibold">Tải thành công đơn hàng và thực đơn mới nhất</span>
+              </div>
+            </div>
+            <div className="bg-white/20 px-2 py-1 rounded-md text-[9px] font-extrabold uppercase tracking-wider flex items-center gap-1">
+              <span className="material-symbols-outlined text-[11px] font-bold">done_all</span>
+              Vừa xong
+            </div>
+          </div>
+        )}
 
         {/* Bento Grid 2x3 */}
         <section className="grid grid-cols-2 gap-3">
@@ -295,12 +420,184 @@ export default function HomeDashboard({
           </button>
         </div>
 
+        {/* Sticky Notes (Ghi chú nhanh) */}
+        <section className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary font-bold text-xl">push_pin</span>
+              <h3 className="text-base font-bold text-[#1a1c1c]">Ghi chú nhanh trong ngày</h3>
+            </div>
+            <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
+              {notes.length} ghi chú
+            </span>
+          </div>
+
+          {/* Quick Notes Grid */}
+          {notes.length === 0 ? (
+            <div className="text-center py-8 border border-dashed border-gray-200 rounded-xl text-sm text-on-surface-variant bg-gray-50/50">
+              <span className="material-symbols-outlined text-gray-300 text-3xl block mb-1">note_alt</span>
+              Chưa có ghi chú nào hôm nay.<br />Hãy tạo ghi chú mới để lưu thông tin tạm thời!
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 max-h-[280px] overflow-y-auto pr-1">
+              {notes.map((note) => {
+                let colorClasses = '';
+                switch (note.color) {
+                  case 'green':
+                    colorClasses = 'bg-emerald-50/90 border-emerald-200 text-emerald-950';
+                    break;
+                  case 'blue':
+                    colorClasses = 'bg-blue-50/90 border-blue-200 text-blue-950';
+                    break;
+                  case 'pink':
+                    colorClasses = 'bg-rose-50/90 border-rose-200 text-rose-950';
+                    break;
+                  case 'purple':
+                    colorClasses = 'bg-purple-50/90 border-purple-200 text-purple-950';
+                    break;
+                  case 'yellow':
+                  default:
+                    colorClasses = 'bg-amber-50/95 border-amber-200 text-amber-950';
+                    break;
+                }
+
+                return (
+                  <div
+                    key={note.id}
+                    className={`p-3.5 rounded-xl border ${colorClasses} shadow-sm relative flex flex-col justify-between group transition-all hover:shadow-md min-h-[90px]`}
+                  >
+                    <p className="text-xs font-semibold leading-relaxed break-words whitespace-pre-wrap pr-4 pb-2">
+                      {note.content}
+                    </p>
+                    <div className="flex items-center justify-between mt-auto pt-1 border-t border-black/5">
+                      <span className="text-[9px] opacity-60 font-medium">
+                        {new Date(note.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleEditNote(note)}
+                          className="p-1 rounded-md hover:bg-black/5 text-inherit transition-colors"
+                          title="Sửa ghi chú"
+                        >
+                          <span className="material-symbols-outlined text-xs font-bold block">edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteNote(note.id)}
+                          className="p-1 rounded-md hover:bg-black/5 text-red-700 transition-colors"
+                          title="Xóa ghi chú"
+                        >
+                          <span className="material-symbols-outlined text-xs font-bold block">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Quick Tags / Templates */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] text-on-surface-variant font-bold tracking-wider uppercase">Mẫu ghi nhanh:</span>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: 'Giao gấp 🚀', text: 'Giao gấp!' },
+                { label: 'Hết bún ❌', text: 'Hết bún!' },
+                { label: 'Hết cơm ❌', text: 'Hết cơm!' },
+                { label: 'Gọi shipper 🛵', text: 'Nhắc shipper giao đúng giờ' },
+                { label: 'Gọi trước 📞', text: 'Gọi điện trước khi giao' },
+                { label: 'Tránh hành 🌿', text: 'Khách không ăn hành' }
+              ].map((tmpl, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleQuickTemplate(tmpl.text)}
+                  className="px-2.5 py-1 bg-gray-100 hover:bg-gray-250 border border-gray-200 rounded-full text-[11px] font-bold text-on-surface-variant transition-colors cursor-pointer"
+                >
+                  {tmpl.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Note Input area */}
+          <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-3">
+            <textarea
+              value={newNoteText}
+              onChange={(e) => setNewNoteText(e.target.value)}
+              placeholder="Nhập nội dung ghi chú nhanh hoặc lời dặn việc cần làm..."
+              className="w-full bg-white border border-gray-250 rounded-lg p-2.5 text-xs font-semibold text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary placeholder-gray-400 min-h-[60px] resize-none"
+            />
+
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              {/* Color Picker dots */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-on-surface-variant font-bold uppercase">Màu:</span>
+                <div className="flex gap-1.5">
+                  {(['yellow', 'green', 'blue', 'pink', 'purple'] as const).map((color) => {
+                    let dotBg = '';
+                    switch (color) {
+                      case 'yellow': dotBg = 'bg-yellow-300'; break;
+                      case 'green': dotBg = 'bg-emerald-300'; break;
+                      case 'blue': dotBg = 'bg-blue-300'; break;
+                      case 'pink': dotBg = 'bg-rose-300'; break;
+                      case 'purple': dotBg = 'bg-purple-300'; break;
+                    }
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setSelectedColor(color)}
+                        className={`w-5.5 h-5.5 rounded-full ${dotBg} border transition-all flex items-center justify-center cursor-pointer ${
+                          selectedColor === color ? 'border-primary scale-110 shadow-sm' : 'border-transparent hover:scale-105'
+                        }`}
+                      >
+                        {selectedColor === color && (
+                          <span className="material-symbols-outlined text-[10px] font-black text-on-surface">done</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-1.5">
+                {editingNoteId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="px-3 py-1.5 bg-gray-250 text-on-surface-variant hover:bg-gray-300 font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleAddNote}
+                  disabled={!newNoteText.trim()}
+                  className={`px-3 py-1.5 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs ${
+                    newNoteText.trim()
+                      ? 'bg-primary hover:bg-opacity-95'
+                      : 'bg-gray-300 cursor-not-allowed text-gray-500'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm font-bold">
+                    {editingNoteId ? 'save' : 'add'}
+                  </span>
+                  {editingNoteId ? 'Cập nhật' : 'Thêm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Pending Orders List Preview */}
         <section className="space-y-3">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-bold text-[#1a1c1c]">Đơn hàng chưa giao</h3>
             <button
-              onClick={onViewAllOrdersClick}
+              onClick={() => onViewAllOrdersClick()}
               className="text-primary text-xs font-bold uppercase tracking-wider active-press hover:underline"
             >
               Xem tất cả

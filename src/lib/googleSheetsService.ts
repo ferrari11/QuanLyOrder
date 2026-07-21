@@ -1,4 +1,4 @@
-import { Order, MenuItem } from '../types';
+import { Order, MenuItem, OrderStatus } from '../types';
 
 export interface SheetConfig {
   spreadsheetId: string;
@@ -1055,5 +1055,297 @@ export const fetchMenuItemsFromSheet = async (
     });
 
   return fetchedItems;
+};
+
+/**
+ * Fetches current orders from Google Sheets (DON_HANG and CHI_TIET_DON_HANG) to sync with application state
+ */
+export const fetchOrdersFromSheet = async (
+  accessToken: string,
+  spreadsheetId: string,
+  menuItems: MenuItem[],
+  defaultOrders: Order[]
+): Promise<Order[]> => {
+  let orderRows: string[][] = [];
+  let detailRows: string[][] = [];
+  const isMockToken = !accessToken || accessToken.startsWith('mock_token_') || !spreadsheetId || spreadsheetId.startsWith('mock_');
+  let lastError: Error | null = null;
+
+  let donHangTitle = 'DON_HANG';
+  let chiTietTitle = 'CHI_TIET_DON_HANG';
+
+  if (!isMockToken) {
+    try {
+      // Step 1: Discover correct sheet titles
+      const metadataRes = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      if (metadataRes.ok) {
+        const metadata = await metadataRes.json();
+        const sheetsList = metadata.sheets || [];
+
+        const findTitle = (lowerName: string, defaultName: string): string => {
+          const matched = sheetsList.find(
+            (s: any) => s.properties?.title?.toLowerCase() === lowerName || s.properties?.title?.toLowerCase() === lowerName.replace(/_/g, '')
+          );
+          return matched?.properties?.title || defaultName;
+        };
+
+        donHangTitle = findTitle('don_hang', 'DON_HANG');
+        chiTietTitle = findTitle('chi_tiet_don_hang', 'CHI_TIET_DON_HANG');
+      }
+    } catch (metadataErr) {
+      console.warn('Failed to fetch spreadsheet metadata for order/detail discovery:', metadataErr);
+    }
+
+    // Step 2: Fetch DON_HANG
+    try {
+      console.log(`Fetching from range: "${donHangTitle}!A1:S500" using API`);
+      const res = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(donHangTitle)}!A1:S500`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        orderRows = data.values || [];
+      } else {
+        const errText = await res.text();
+        console.warn(`API DON_HANG fetch failed: ${errText}`);
+        lastError = handleSheetsApiError(errText, `Không thể tải dữ liệu từ trang tính "${donHangTitle}".`);
+      }
+    } catch (apiErr: any) {
+      console.warn('Error fetching order rows via Sheets API, trying CSV fallback:', apiErr);
+      lastError = apiErr instanceof Error ? apiErr : new Error(String(apiErr));
+    }
+
+    // Step 3: Fetch CHI_TIET_DON_HANG
+    try {
+      console.log(`Fetching from range: "${chiTietTitle}!A1:G1000" using API`);
+      const res = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(chiTietTitle)}!A1:G1000`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        detailRows = data.values || [];
+      } else {
+        const errText = await res.text();
+        console.warn(`API CHI_TIET_DON_HANG fetch failed: ${errText}`);
+        lastError = handleSheetsApiError(errText, `Không thể tải dữ liệu từ trang tính "${chiTietTitle}".`);
+      }
+    } catch (apiErr: any) {
+      console.warn('Error fetching detail rows via Sheets API, trying CSV fallback:', apiErr);
+      lastError = apiErr instanceof Error ? apiErr : new Error(String(apiErr));
+    }
+  }
+
+  // Fallbacks to CSV URLs if API failed but we have a spreadsheet ID
+  if (orderRows.length === 0 && spreadsheetId && !spreadsheetId.startsWith('mock_')) {
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&sheet=${encodeURIComponent(donHangTitle)}`;
+    try {
+      const csvRes = await fetch(csvUrl);
+      if (csvRes.ok) {
+        const csvText = await csvRes.text();
+        orderRows = parseCSV(csvText);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch/parse CSV from', csvUrl, err);
+    }
+  }
+
+  if (detailRows.length === 0 && spreadsheetId && !spreadsheetId.startsWith('mock_')) {
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&sheet=${encodeURIComponent(chiTietTitle)}`;
+    try {
+      const csvRes = await fetch(csvUrl);
+      if (csvRes.ok) {
+        const csvText = await csvRes.text();
+        detailRows = parseCSV(csvText);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch/parse CSV from', csvUrl, err);
+    }
+  }
+
+  // If mock token or no sheets, return default orders
+  if (orderRows.length === 0) {
+    if (!isMockToken) {
+      throw lastError || new Error('Không thể tải đơn hàng từ Google Sheets. Vui lòng đảm bảo bạn có trang tính tên "DON_HANG"!');
+    }
+    return defaultOrders;
+  }
+
+  // Detect DON_HANG column mapping based on headers (first 2 rows)
+  let orderIdCol = 0;
+  let custNameCol = 2;
+  let phoneCol = 3;
+  let delivDateCol = 4;
+  let delivTimeCol = 5;
+  let totalAmountCol = 10;
+  let statusCol = 13;
+  let sourceCol = 15;
+  let noteCol = 16;
+  let createdAtCol = 17;
+
+  let orderHeaderRowIndex = -1;
+  for (let r = 0; r < Math.min(orderRows.length, 3); r++) {
+    const row = orderRows[r] || [];
+    const hasHeaders = row.some(cell => {
+      const val = cell.toLowerCase().trim();
+      return val.includes('order_id') || val.includes('mã đơn') || val.includes('customer') || val.includes('khách');
+    });
+
+    if (hasHeaders) {
+      orderHeaderRowIndex = r;
+      row.forEach((cell, idx) => {
+        const val = cell.toLowerCase().trim();
+        if (val === 'order_id' || val.includes('mã đơn') || val === 'id') orderIdCol = idx;
+        else if (val.includes('customer_name') || val.includes('tên khách') || val.includes('khách hàng')) custNameCol = idx;
+        else if (val.includes('phone') || val.includes('sđt') || val.includes('điện thoại')) phoneCol = idx;
+        else if (val.includes('delivery_time') || val.includes('giờ giao')) delivTimeCol = idx;
+        else if (val.includes('delivery_date') || val.includes('ngày giao')) delivDateCol = idx;
+        else if (val.includes('total_amount') || val.includes('tổng tiền') || val === 'tổng') totalAmountCol = idx;
+        else if (val.includes('order_status') || val.includes('trạng thái') || val === 'status') statusCol = idx;
+        else if (val.includes('source') || val.includes('nguồn')) sourceCol = idx;
+        else if (val.includes('note') || val.includes('ghi chú') || val.includes('lời dặn')) noteCol = idx;
+        else if (val.includes('created_at') || val.includes('tạo lúc')) createdAtCol = idx;
+      });
+      break;
+    }
+  }
+
+  // Detect CHI_TIET_DON_HANG column mapping
+  let detOrderIdCol = 1;
+  let detMenuIdCol = 2;
+  let detMenuNameCol = 3;
+  let detQtyCol = 4;
+  let detPriceCol = 5;
+
+  let detailHeaderRowIndex = -1;
+  for (let r = 0; r < Math.min(detailRows.length, 3); r++) {
+    const row = detailRows[r] || [];
+    const hasHeaders = row.some(cell => {
+      const val = cell.toLowerCase().trim();
+      return val.includes('detail_id') || val.includes('mã chi tiết') || val.includes('menu_id') || val.includes('mã món');
+    });
+
+    if (hasHeaders) {
+      detailHeaderRowIndex = r;
+      row.forEach((cell, idx) => {
+        const val = cell.toLowerCase().trim();
+        if (val === 'order_id' || val.includes('mã đơn')) detOrderIdCol = idx;
+        else if (val === 'menu_id' || val.includes('mã món')) detMenuIdCol = idx;
+        else if (val === 'menu_name' || val.includes('tên món')) detMenuNameCol = idx;
+        else if (val === 'quantity' || val.includes('số lượng') || val === 'qty') detQtyCol = idx;
+        else if (val === 'unit_price' || val.includes('giá') || val.includes('đơn giá')) detPriceCol = idx;
+      });
+      break;
+    }
+  }
+
+  const isOrderHeader = (row: string[], idx: number) => {
+    if (idx === orderHeaderRowIndex) return true;
+    if (!row || row.length === 0) return true;
+    const val = (orderIdCol < row.length && row[orderIdCol]) ? row[orderIdCol].toLowerCase().trim() : '';
+    return val === 'order_id' || val === 'id' || val.includes('mã đơn');
+  };
+
+  const isDetailHeader = (row: string[], idx: number) => {
+    if (idx === detailHeaderRowIndex) return true;
+    if (!row || row.length === 0) return true;
+    const val = (detOrderIdCol < row.length && row[detOrderIdCol]) ? row[detOrderIdCol].toLowerCase().trim() : '';
+    return val === 'order_id' || val === 'id' || val.includes('mã đơn');
+  };
+
+  // Parse details rows into detail groups grouped by order_id
+  const detailsByOrderId: { [orderId: string]: any[] } = {};
+  detailRows.forEach((row, idx) => {
+    if (isDetailHeader(row, idx)) return;
+    const orderId = (detOrderIdCol < row.length && row[detOrderIdCol]) ? row[detOrderIdCol].trim() : '';
+    if (!orderId) return;
+
+    const menuId = (detMenuIdCol < row.length && row[detMenuIdCol]) ? row[detMenuIdCol].trim() : '';
+    const name = (detMenuNameCol < row.length && row[detMenuNameCol]) ? row[detMenuNameCol].trim() : '';
+    const qtyStr = (detQtyCol < row.length && row[detQtyCol]) ? row[detQtyCol].trim() : '1';
+    const quantity = parseInt(qtyStr.replace(/[^0-9]/g, ''), 10) || 1;
+    const priceStr = (detPriceCol < row.length && row[detPriceCol]) ? row[detPriceCol].trim() : '0';
+    const price = parseInt(priceStr.replace(/[^0-9]/g, ''), 10) || 0;
+
+    // Look up menu item image
+    const matchedMenu = menuItems.find(m => m.id === menuId || m.name.toLowerCase() === name.toLowerCase());
+    const image = matchedMenu?.image || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBGsng6TClD04l_FlxZhRVR_zDehiIJOWejLfeBC8sHP-MYUby9H4OTRvt8itP153vTuvUeyDvT4d8w-PI15Cg1dlNq-9QUNEMubm-vw918p484oJx8vjs-PsOf4iLD4-airFuEZUXZcFrmCqLO33EduCAINDWsngwS_Ji8mgU_8kLjMjLr9VxVWhbbbilLkGztfD7TdjUl4SnZHDIW33B6ujL7wcZ1X7xDSi_zabgH6OitfWW81uN0vw';
+
+    if (!detailsByOrderId[orderId]) {
+      detailsByOrderId[orderId] = [];
+    }
+    detailsByOrderId[orderId].push({
+      id: menuId || `M_${Math.floor(Math.random() * 900) + 100}`,
+      name,
+      price,
+      quantity,
+      image,
+    });
+  });
+
+  // Map orderRows to Orders
+  const fetchedOrders: Order[] = orderRows
+    .filter((row, idx) => {
+      if (isOrderHeader(row, idx)) return false;
+      const orderId = (orderIdCol < row.length && row[orderIdCol]) ? row[orderIdCol].trim() : '';
+      return orderId !== '';
+    })
+    .map((row) => {
+      const id = row[orderIdCol].trim();
+      const customerName = (custNameCol < row.length && row[custNameCol]) ? row[custNameCol].trim() : 'Khách hàng';
+      const phone = (phoneCol < row.length && row[phoneCol]) ? row[phoneCol].trim() : '';
+      const deliveryTime = (delivTimeCol < row.length && row[delivTimeCol]) ? row[delivTimeCol].trim() : '12:00';
+      const deliveryDate = (delivDateCol < row.length && row[delivDateCol]) ? row[delivDateCol].trim() : new Date().toISOString().split('T')[0];
+      const totalAmountStr = (totalAmountCol < row.length && row[totalAmountCol]) ? row[totalAmountCol].trim() : '0';
+      const totalAmount = parseInt(totalAmountStr.replace(/[^0-9]/g, ''), 10) || 0;
+      const statusRaw = (statusCol < row.length && row[statusCol]) ? row[statusCol].trim() : 'Đang chờ';
+      
+      let status: OrderStatus = 'Đang chờ';
+      if (statusRaw === 'Chuẩn bị' || statusRaw === 'Đã giao' || statusRaw === 'Đã hủy') {
+        status = statusRaw;
+      }
+
+      const sourceRaw = (sourceCol < row.length && row[sourceCol]) ? row[sourceCol].trim() : 'Gọi điện';
+      let source: any = 'Gọi điện';
+      if (['Facebook', 'Zalo', 'Gọi điện', 'Khách quen', 'ShopeeFood', 'GrabFood'].includes(sourceRaw)) {
+        source = sourceRaw;
+      }
+
+      const note = (noteCol < row.length && row[noteCol]) ? row[noteCol].trim() : '';
+      const createdAt = (createdAtCol < row.length && row[createdAtCol]) ? row[createdAtCol].trim() : new Date().toISOString();
+      const isUrgent = note.toLowerCase().includes('gấp') || note.toLowerCase().includes('khẩn cấp') || note.toLowerCase().includes('urgently');
+
+      const items = detailsByOrderId[id] || [];
+
+      return {
+        id,
+        customerName,
+        phone,
+        source,
+        items,
+        totalAmount,
+        deliveryTime,
+        deliveryDate,
+        status,
+        note,
+        isUrgent,
+        createdAt,
+      };
+    });
+
+  // Sort orders by id or date descending (latest first)
+  return fetchedOrders.sort((a, b) => b.id.localeCompare(a.id));
 };
 

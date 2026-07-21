@@ -19,7 +19,8 @@ import {
   syncNewOrderToSheet,
   updateOrderStatusInSheet,
   fullSyncToSheet,
-  fetchMenuItemsFromSheet
+  fetchMenuItemsFromSheet,
+  fetchOrdersFromSheet
 } from './lib/googleSheetsService';
 
 export default function App() {
@@ -49,6 +50,7 @@ export default function App() {
   });
   const [isSyncing, setIsSyncing] = useState(false);
   const [gSheetsStatusMessage, setGSheetsStatusMessage] = useState<string | null>(null);
+  const [showSyncPulse, setShowSyncPulse] = useState(false);
   
   // Controls transition to the Creating Order screen (Screen 3)
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
@@ -150,13 +152,54 @@ export default function App() {
     return null;
   };
 
-  // Auto-sync menu items when connected
-  useEffect(() => {
-    if (googleToken && spreadsheetId) {
-      syncMenuFromSheet(googleToken, spreadsheetId).catch((err) => {
-        console.warn('Auto-sync menu failed, will retry on manual refresh:', err);
-      });
+  // Synchronizes the orders from Google Sheets to local state
+  const syncOrdersFromSheet = async (token: string, sheetId: string, currentMenu: any[]) => {
+    try {
+      const fetchedOrders = await fetchOrdersFromSheet(token, sheetId, currentMenu, DEFAULT_ORDERS);
+      if (fetchedOrders && fetchedOrders.length > 0) {
+        saveOrders(fetchedOrders);
+        return fetchedOrders;
+      }
+    } catch (err) {
+      console.warn('Failed to sync orders from Google Sheets:', err);
+      throw err;
     }
+    return null;
+  };
+
+  // Auto-sync menu items and orders when connected, run periodically every 30 seconds to support multi-device sync
+  useEffect(() => {
+    let intervalId: any;
+
+    if (googleToken && spreadsheetId) {
+      const autoSync = async () => {
+        try {
+          const items = await syncMenuFromSheet(googleToken, spreadsheetId);
+          const activeMenu = items && items.length > 0 ? items : menuItems;
+          const syncedOrders = await syncOrdersFromSheet(googleToken, spreadsheetId, activeMenu);
+          
+          if (syncedOrders && syncedOrders.length > 0) {
+            // Trigger visual pulse for updated data!
+            setShowSyncPulse(true);
+            setTimeout(() => {
+              setShowSyncPulse(false);
+            }, 6000);
+          }
+        } catch (err) {
+          console.warn('Auto-sync menu & orders failed, will retry on next cycle:', err);
+        }
+      };
+
+      // Initial execution
+      autoSync();
+
+      // Setup periodic interval
+      intervalId = setInterval(autoSync, 30000); // every 30 seconds
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [googleToken, spreadsheetId]);
 
   const handleEmailSignIn = async (email: string, password: string) => {
@@ -355,7 +398,8 @@ export default function App() {
               orders={orders}
               onAddOrderClick={() => setIsCreatingOrder(true)}
               onViewAllOrdersClick={(category) => {
-                setOrderSearchFilter(category || '');
+                const searchStr = typeof category === 'string' ? category : '';
+                setOrderSearchFilter(searchStr);
                 setActiveTab('orders');
               }}
               onOrderClick={(order) => setSelectedOrder(order)}
@@ -364,6 +408,7 @@ export default function App() {
               googleUser={googleUser}
               spreadsheetId={spreadsheetId}
               spreadsheetUrl={spreadsheetUrl}
+              showSyncPulse={showSyncPulse}
             />
           )}
 
@@ -410,18 +455,36 @@ export default function App() {
                   return;
                 }
                 setIsSyncing(true);
-                setGSheetsStatusMessage('Đang tải thực đơn từ Google Sheets...');
+                setGSheetsStatusMessage('Đang đồng bộ thực đơn và đơn hàng từ Google Sheets...');
                 try {
+                  // 1. Sync Menu
                   const items = await syncMenuFromSheet(googleToken, spreadsheetId);
+                  const activeMenu = items && items.length > 0 ? items : menuItems;
+
+                  // 2. Sync Orders and order details
+                  const syncedOrders = await syncOrdersFromSheet(googleToken, spreadsheetId, activeMenu);
+
+                  let successMsg = 'Đã đồng bộ thành công';
                   if (items && items.length > 0) {
-                    setGSheetsStatusMessage(`Đã đồng bộ thành công ${items.length} món ăn từ Google Sheet!`);
+                    successMsg += ` ${items.length} món ăn`;
                   } else {
-                    setGSheetsStatusMessage('Không tìm thấy dữ liệu món ăn trong sheet MENU.');
+                    successMsg += ' thực đơn';
                   }
-                  setTimeout(() => setGSheetsStatusMessage(null), 4000);
+                  if (syncedOrders && syncedOrders.length > 0) {
+                    successMsg += ` và ${syncedOrders.length} đơn hàng từ Google Sheets!`;
+                  } else {
+                    successMsg += ' thành công!';
+                  }
+
+                  setGSheetsStatusMessage(successMsg);
+                  setShowSyncPulse(true);
+                  setTimeout(() => {
+                    setShowSyncPulse(false);
+                    setGSheetsStatusMessage(null);
+                  }, 6000);
                 } catch (err: any) {
-                  setGSheetsStatusMessage(`Lỗi đồng bộ thực đơn: ${err.message}`);
-                  setTimeout(() => setGSheetsStatusMessage(null), 4000);
+                  setGSheetsStatusMessage(`Lỗi đồng bộ: ${err.message}`);
+                  setTimeout(() => setGSheetsStatusMessage(null), 5000);
                 } finally {
                   setIsSyncing(false);
                 }

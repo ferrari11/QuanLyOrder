@@ -21,8 +21,9 @@ export default function OrderList({
 
   // Sync with initialSearchTerm when parent triggers a specific search filter from another tab
   useEffect(() => {
-    setSearchTerm(initialSearchTerm);
-    if (initialSearchTerm) {
+    const term = typeof initialSearchTerm === 'string' ? initialSearchTerm : '';
+    setSearchTerm(term);
+    if (term) {
       // If a category is clicked, default to showing 'all' tab so they can see all orders with that item
       setActiveFilter('all');
     }
@@ -30,9 +31,10 @@ export default function OrderList({
 
   // Multi-criteria client side search & filter
   const filteredOrders = useMemo(() => {
+    const searchString = typeof searchTerm === 'string' ? searchTerm : '';
     return orders.filter((order) => {
       // 1. Search text query match
-      const query = searchTerm.toLowerCase().trim();
+      const query = searchString.toLowerCase().trim();
       const matchesSearch =
         order.customerName.toLowerCase().includes(query) ||
         order.phone.includes(query) ||
